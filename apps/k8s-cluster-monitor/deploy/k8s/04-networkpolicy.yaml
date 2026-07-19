@@ -1,0 +1,77 @@
+# OPTIONAL hardening step — apply this LAST, after confirming the tool works
+# without it. If anything breaks after applying, roll back immediately with:
+#   kubectl delete ciliumnetworkpolicy k8s-cluster-monitor-egress -n k8s-cluster-monitor
+#
+# CILIUM-SPECIFIC, NOT PORTABLE: this is a CiliumNetworkPolicy, not a plain
+# `networking.k8s.io/v1` NetworkPolicy. That's not a style choice — a plain
+# NetworkPolicy using `ipBlock` for the node-local DNS address (169.254.25.10)
+# and the kube-apiserver was tried first and TESTED LIVE to silently break
+# all egress (DNS + API access) on this cluster (2026-07-19). Root cause,
+# confirmed via `hubble observe --from-ip <pod-ip>`: Cilium classifies
+# 169.254.25.10 (nodelocaldns) and the apiserver as special internal
+# identities (`host` / `kube-apiserver`), not as plain remote CIDR peers —
+# a vanilla NetworkPolicy `ipBlock` rule cannot match Cilium's `host` or
+# `kube-apiserver` entities at all, so egress silently DROPPED even though
+# the IP address in the rule was 100% correct. CiliumNetworkPolicy's
+# `toEntities: [host, kube-apiserver]` is the actual, tested-working fix.
+# If this cluster ever migrates off Cilium, this file needs to be rewritten
+# as a plain NetworkPolicy again — and re-tested the same careful way
+# (apply to a disposable debug pod first, never straight to the real
+# workload) before trusting it.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: k8s-cluster-monitor-egress
+  namespace: k8s-cluster-monitor
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: k8s-cluster-monitor
+  egress:
+    # kube-apiserver — Cilium's built-in entity, not an ipBlock/ClusterIP guess.
+    - toEntities:
+        - kube-apiserver
+
+    # DNS: node-local cache (the `host` entity) plus CoreDNS as a fallback path.
+    - toEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # Prometheus / Alertmanager / Grafana (monitoring namespace). Note port 3000
+    # here targets the Grafana pod's actual container port — even though the
+    # app calls the Service on port 80, Cilium enforces the podSelector-matched
+    # destination endpoint's port, not the Service's front-end port.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+            - port: "9093"
+              protocol: TCP
+            - port: "3000"
+              protocol: TCP
+
+    # Loki (logging namespace)
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: logging
+      toPorts:
+        - ports:
+            - port: "3100"
+              protocol: TCP

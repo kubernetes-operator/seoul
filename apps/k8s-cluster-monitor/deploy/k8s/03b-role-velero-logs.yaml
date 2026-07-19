@@ -1,0 +1,14 @@
+# The only namespace-scoped, non-cluster-wide grant this tool has: reading
+# pod logs is itself an information-exposure risk (apps can log secrets/PII
+# to stdout by accident), so it's deliberately NOT part of the cluster-wide
+# ClusterRole — scoped to the one namespace and one sub-check that needs it
+# (checks/storage_backup.py's Velero log-error scan).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: k8s-cluster-monitor-velero-logs
+  namespace: velero
+rules:
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]

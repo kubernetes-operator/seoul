@@ -1,0 +1,21 @@
+# Non-secret configuration only. Service names below match kube-prometheus-stack's
+# default Helm release naming ("prometheus-stack") and this cluster's loki-stack
+# release, both confirmed against the real cluster during this tool's design —
+# verify with `kubectl get svc -n monitoring` / `-n logging` if the Helm release
+# names ever change.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-cluster-monitor-config
+  namespace: k8s-cluster-monitor
+data:
+  MONITOR_PROMETHEUS_URL: "http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090"
+  MONITOR_ALERTMANAGER_URL: "http://prometheus-stack-kube-prom-alertmanager.monitoring.svc.cluster.local:9093"
+  MONITOR_GRAFANA_URL: "http://prometheus-stack-grafana.monitoring.svc.cluster.local:80"
+  MONITOR_LOKI_URL: "http://loki-stack.logging.svc.cluster.local:3100"
+  MONITOR_HTTP_TIMEOUT_SECONDS: "5.0"
+  # Empty = scheduling disabled by default; set via the Settings page in the
+  # dashboard (persisted to SQLite) or here (only used the very first boot,
+  # before the `schedule` table has a row). Example hourly: "0 * * * *"
+  MONITOR_SCHEDULE_CRON: ""
+  MONITOR_RETENTION_DAYS: "30"

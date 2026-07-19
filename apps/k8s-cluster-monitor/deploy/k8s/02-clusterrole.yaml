@@ -1,0 +1,86 @@
+# Strictly read-only: get/list/watch only, across every resource group used
+# by backend/app/checks/*.py. No create/update/patch/delete anywhere, no
+# pods/exec, no pods/portforward, and — deliberately — NO `secrets` in any
+# form. See backend/app/checks/security.py and the deploy README for why.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8s-cluster-monitor-readonly
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - pods
+      - events
+      - resourcequotas
+      - namespaces
+      - services
+      - endpoints
+      - serviceaccounts
+      - persistentvolumes
+      - persistentvolumeclaims
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies", "ingresses"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gateways", "httproutes"]
+    verbs: ["get", "list", "watch"]
+
+  # Best-effort: these CRDs may not be installed everywhere. safe_call() in
+  # checks/base.py catches the resulting 404/403 and degrades gracefully
+  # rather than crashing the check run.
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["metallb.io"]
+    resources: ["ipaddresspools", "l2advertisements"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates", "certificaterequests"]
+    verbs: ["get", "list", "watch"]
+
+  # NOTE: this also grants read on RBAC objects cluster-wide, which is itself
+  # meaningful reconnaissance value (though not mutation capability) — an
+  # accepted, deliberate trade-off documented in deploy/README.md.
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["velero.io"]
+    resources: ["backups", "schedules", "restores", "backupstoragelocations", "volumesnapshotlocations"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["servicemonitors", "podmonitors", "prometheusrules", "alertmanagers"]
+    verbs: ["get", "list", "watch"]
+
+  # metrics-server API, used only as a best-effort resource-usage signal in
+  # the health domain; absence is handled gracefully (see checks/health.py).
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list"]

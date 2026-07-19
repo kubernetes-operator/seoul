@@ -1,0 +1,145 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #6b7280;
+  --border: #e2e2e2;
+  --card-bg: #f7f7f8;
+  --critical: #dc2626;
+  --warning: #d97706;
+  --info: #2563eb;
+  --primary: #111827;
+  --primary-fg: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121212;
+    --fg: #e5e5e5;
+    --muted: #9ca3af;
+    --border: #2e2e2e;
+    --card-bg: #1c1c1e;
+    --critical: #f87171;
+    --warning: #fbbf24;
+    --info: #60a5fa;
+    --primary: #e5e5e5;
+    --primary-fg: #121212;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.topbar h1 { font-size: 18px; margin: 0; }
+
+#tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.tab {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.tab.active { background: var(--card-bg); color: var(--fg); border-color: var(--border); }
+
+main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+
+.view { display: none; }
+.view.active { display: block; }
+
+.muted { color: var(--muted); font-size: 13px; }
+
+.toolbar { display: flex; align-items: center; gap: 12px; margin: 12px 0; flex-wrap: wrap; }
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 12px 0 24px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  border-radius: 10px;
+  padding: 14px;
+}
+.card h3 { margin: 0 0 8px; font-size: 15px; }
+.card .status-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+.status-ok { background: #16a34a33; color: #16a34a; }
+.status-degraded { background: #d9770633; color: var(--warning); }
+.status-error { background: #dc262633; color: var(--critical); }
+
+.severity-bar-row { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 3px 0; }
+.severity-bar-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.severity-bar-fill { height: 100%; }
+.fill-critical { background: var(--critical); }
+.fill-warning { background: var(--warning); }
+.fill-info { background: var(--info); }
+
+.card-actions { margin-top: 10px; }
+.card-actions button { font-size: 12px; padding: 4px 10px; }
+
+table.findings-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+table.findings-table th, table.findings-table td {
+  text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top;
+}
+table.findings-table th { color: var(--muted); font-weight: 600; }
+
+.sev-pill { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.sev-critical { background: var(--critical); color: white; }
+.sev-warning { background: var(--warning); color: #1a1a1a; }
+.sev-info { background: var(--info); color: white; }
+
+.evidence-toggle { cursor: pointer; color: var(--info); background: none; border: none; font-size: 12px; padding: 0; }
+.evidence-block { display: none; font-size: 12px; color: var(--muted); white-space: pre-wrap; margin-top: 4px; }
+.evidence-block.open { display: block; }
+code { background: var(--card-bg); padding: 1px 5px; border-radius: 4px; }
+
+.chart-box { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--card-bg); }
+
+form#settings-form { display: flex; flex-direction: column; gap: 14px; max-width: 480px; }
+form#settings-form input[type=text] {
+  display: block; width: 100%; margin-top: 4px; padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg);
+}
+fieldset { border: 1px solid var(--border); border-radius: 8px; }
+fieldset label { display: block; margin: 4px 0; font-size: 13px; }
+
+.filters { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; align-items: center; }
+select { padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); }

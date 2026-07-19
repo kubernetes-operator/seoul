@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: k8s-cluster-monitor-data
+  namespace: k8s-cluster-monitor
+spec:
+  accessModes: ["ReadWriteOnce"]
+  # storageClassName intentionally omitted — uses the cluster's default
+  # StorageClass (this cluster: nfs-nas-sc-main). Note its reclaimPolicy is
+  # Delete, same caveat the storage_backup check itself surfaces for other
+  # apps' data volumes: back this namespace up via Velero too (see deploy
+  # README) so the tool's own finding history isn't the one uncovered PVC.
+  resources:
+    requests:
+      storage: 1Gi
