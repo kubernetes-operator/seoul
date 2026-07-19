@@ -45,7 +45,7 @@ function switchTab(tab) {
 async function renderOverview() {
   const cardsEl = document.getElementById("overview-cards");
   cardsEl.innerHTML = "로딩 중...";
-  const latest = await api("/api/runs/latest");
+  const latest = await api("api/runs/latest");
 
   cardsEl.innerHTML = "";
   for (const domain of DOMAINS) {
@@ -95,7 +95,7 @@ async function triggerRun(domain, btn) {
   const original = btn.textContent;
   btn.textContent = "실행 중...";
   try {
-    await api(`/api/runs/${domain}`, { method: "POST" });
+    await api(`api/runs/${domain}`, { method: "POST" });
     await renderOverview();
   } catch (e) {
     alert(`실행 실패: ${e.message}`);
@@ -108,7 +108,7 @@ async function triggerRun(domain, btn) {
 async function renderTrend() {
   const domain = document.getElementById("trend-domain").value;
   const days = document.getElementById("trend-days").value;
-  const rows = await api(`/api/findings/trend?days=${days}${domain ? `&domain=${domain}` : ""}`);
+  const rows = await api(`api/findings/trend?days=${days}${domain ? `&domain=${domain}` : ""}`);
 
   const series = { critical: [], warning: [], info: [] };
   const labels = [];
@@ -153,7 +153,7 @@ async function renderDomainView(domain) {
 
   view.querySelector(".run-now").addEventListener("click", async (e) => {
     e.target.disabled = true;
-    try { await api(`/api/runs/${domain}`, { method: "POST" }); await loadFindings(); }
+    try { await api(`api/runs/${domain}`, { method: "POST" }); await loadFindings(); }
     finally { e.target.disabled = false; }
   });
   view.querySelector(".sev-filter").addEventListener("change", loadFindings);
@@ -163,7 +163,7 @@ async function renderDomainView(domain) {
     const sev = view.querySelector(".sev-filter").value;
     const includeResolved = view.querySelector(".include-resolved").checked;
     const findings = await api(
-      `/api/findings?domain=${domain}${sev ? `&severity=${sev}` : ""}${includeResolved ? "&include_resolved=true" : ""}`
+      `api/findings?domain=${domain}${sev ? `&severity=${sev}` : ""}${includeResolved ? "&include_resolved=true" : ""}`
     );
     const tbody = view.querySelector(".findings-body");
     tbody.innerHTML = "";
@@ -192,7 +192,7 @@ async function renderDomainView(domain) {
 
 async function renderDomainViz(domain, container) {
   if (domain === "health") {
-    const findings = await api("/api/findings?domain=health&include_resolved=false");
+    const findings = await api("api/findings?domain=health&include_resolved=false");
     const nodeIssues = {};
     findings.filter((f) => f.check_id === "node_pressure" || f.check_id === "node_not_ready").forEach((f) => {
       nodeIssues[f.resource] = (nodeIssues[f.resource] || 0) + 1;
@@ -204,7 +204,7 @@ async function renderDomainViz(domain, container) {
       container.appendChild(box);
     }
   } else if (domain === "observability") {
-    const findings = await api("/api/findings?domain=observability&include_resolved=false");
+    const findings = await api("api/findings?domain=observability&include_resolved=false");
     const downCount = findings.filter((f) => f.check_id === "prometheus_target_down").length;
     if (downCount) {
       const box = document.createElement("div");
@@ -213,7 +213,7 @@ async function renderDomainViz(domain, container) {
       container.appendChild(box);
     }
   } else if (domain === "storage_backup") {
-    const findings = await api("/api/findings?domain=storage_backup&include_resolved=false");
+    const findings = await api("api/findings?domain=storage_backup&include_resolved=false");
     const stale = findings.find((f) => f.check_id === "velero_backup_stale");
     const none = findings.find((f) => f.check_id === "velero_no_successful_backup");
     if (none) {
@@ -259,7 +259,7 @@ function describeCron(cron) {
 }
 
 async function renderSettings() {
-  const schedule = await api("/api/schedule");
+  const schedule = await api("api/schedule");
   document.getElementById("cron-input").value = schedule.cron || "";
   document.getElementById("cron-preview").textContent = describeCron(schedule.cron);
   document.querySelectorAll(".domain-checkbox").forEach((cb) => {
@@ -277,7 +277,7 @@ async function renderSettings() {
     const statusEl = document.getElementById("settings-status");
     statusEl.textContent = "저장 중...";
     try {
-      await api("/api/schedule", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cron, enabled_domains }) });
+      await api("api/schedule", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cron, enabled_domains }) });
       statusEl.textContent = "저장됨";
     } catch (err) {
       statusEl.textContent = `실패: ${err.message}`;

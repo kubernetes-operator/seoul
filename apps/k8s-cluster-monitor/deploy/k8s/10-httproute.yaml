@@ -1,0 +1,62 @@
+# Exposes the dashboard at https://test2.studiobasa.com/k8smonitoring/ via
+# the cluster's shared Gateway (same pattern as headlamp-route/monitoring-route
+# etc. — one hostname, path-prefix per app).
+#
+# Unlike Grafana/Headlamp (which are natively subpath-aware), this app's
+# frontend assumes it's served at "/". Two things make it work under a
+# subpath instead of rewriting the whole backend to be prefix-aware:
+#   1. The frontend (frontend/static/index.html, js/app.js) uses relative
+#      paths ("css/style.css", "api/runs", ...) instead of absolute ones —
+#      this makes the browser correctly prepend whatever prefix it was
+#      loaded under, but ONLY if the page is loaded WITH a trailing slash.
+#   2. Rule 1 below redirects the no-trailing-slash form to the
+#      trailing-slash form; rule 2 strips the /k8smonitoring prefix
+#      (URLRewrite/ReplacePrefixMatch) before forwarding, so the FastAPI
+#      backend keeps seeing plain root-relative paths and needs no changes.
+#
+# This exposes a read-only, Basic-Auth-protected dashboard over HTTPS — a
+# different risk profile than the Headlamp finding (cluster-admin + public
+# exposure) this cluster's own security check flags elsewhere. Still, rotate
+# the Basic Auth password (see deploy/README.md) now that this is reachable
+# beyond kubectl port-forward.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: k8s-cluster-monitor-route
+  namespace: k8s-cluster-monitor
+spec:
+  hostnames:
+    - test2.studiobasa.com
+  parentRefs:
+    - name: gateway
+      namespace: default
+      sectionName: http
+    - name: gateway
+      namespace: default
+      sectionName: https
+  rules:
+    # /k8smonitoring (no trailing slash) -> redirect to /k8smonitoring/
+    - matches:
+        - path:
+            type: Exact
+            value: /k8smonitoring
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /k8smonitoring/
+    # /k8smonitoring/... -> strip prefix, forward to the app
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /k8smonitoring
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: k8s-cluster-monitor
+          port: 80

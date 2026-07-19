@@ -13,7 +13,7 @@ in-cluster tool deliberately does not automate.
 ## Status
 
 Deployed and running in the `k8s-cluster-monitor` namespace, image
-`registry.local.cloud:5000/k8s-cluster-monitor:v0.1.0`. Schedule: every 6
+`registry.local.cloud:5000/k8s-cluster-monitor:v0.1.1`. Schedule: every 6
 hours (`0 */6 * * *`), all 5 domains. See `deploy/README.md` for the full
 deploy history, including a Cilium-specific NetworkPolicy gotcha hit and
 fixed during rollout (standard `NetworkPolicy` `ipBlock` rules silently
@@ -23,34 +23,24 @@ that reason, not a portability oversight).
 
 ## Accessing the dashboard
 
-The Service is `ClusterIP`-only by default — deliberately not exposed
-externally (see the reasoning in `deploy/k8s/10-httproute.yaml.disabled`).
-Two ways to reach it:
+**https://test2.studiobasa.com/k8smonitoring/** — exposed via the cluster's
+shared Gateway, same pattern as Headlamp/Grafana/etc (`deploy/k8s/10-httproute.yaml`).
+Log in with the Basic Auth username/password created at deploy time
+(`k8s-cluster-monitor-auth` Secret in the `k8s-cluster-monitor` namespace).
+Note the trailing slash — `/k8smonitoring` without it 302-redirects to the
+slash form (needed because, unlike Grafana/Headlamp, this app isn't natively
+subpath-aware; the frontend uses relative asset/API paths instead, which
+only resolve correctly under the trailing-slash URL — see the comment block
+in `deploy/k8s/10-httproute.yaml` for the full mechanism).
 
-**Port-forward (works right now, no cluster changes needed):**
+**Port-forward (no cluster/DNS dependency, useful for local debugging):**
 
 ```bash
 kubectl -n k8s-cluster-monitor port-forward svc/k8s-cluster-monitor 8080:80
 ```
 
-Then open `http://localhost:8080` in a browser — it will prompt for the
-Basic Auth username/password created at deploy time
-(`k8s-cluster-monitor-auth` Secret in that namespace). Leave the
-`port-forward` command running in a terminal while you use the dashboard;
-`Ctrl+C` to stop it.
-
-**Persistent access via the cluster's Gateway (optional, not enabled):**
-this cluster already has a shared Gateway (`nginx-gateway`) with a
-Let's-Encrypt certificate that other internal tools (Headlamp, Grafana,
-etc.) route through on `test2.studiobasa.com`. `deploy/k8s/10-httproute.yaml.disabled`
-is a ready-to-edit template for adding this dashboard the same way — rename
-it to `10-httproute.yaml`, set a real hostname, and `kubectl apply` it.
-Traffic would be HTTPS + Basic Auth, which is a reasonable posture (unlike
-the Headlamp finding this tool's own security check surfaces — that
-dashboard combines *cluster-admin* with public exposure; this one is
-read-only and does not have that problem). Still a call worth making
-deliberately rather than defaulting to it — ask if this would help before
-enabling it.
+Then open `http://localhost:8080` (no trailing-slash subtlety at the root
+path). `Ctrl+C` to stop it when done.
 
 ## Structure
 

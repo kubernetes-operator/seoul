@@ -3,14 +3,18 @@
 ## Current status: deployed
 
 All three gates below are done. Namespace `k8s-cluster-monitor` is live,
-image `registry.local.cloud:5000/k8s-cluster-monitor:v0.1.0`, schedule
-`0 */6 * * *` (every 6 hours, all 5 domains), `CiliumNetworkPolicy` applied.
-The steps below are kept as the reference procedure for redeploying,
-recovering, or standing this up again elsewhere — not a to-do list.
+image `registry.local.cloud:5000/k8s-cluster-monitor:v0.1.1`, schedule
+`0 */6 * * *` (every 6 hours, all 5 domains), `CiliumNetworkPolicy` applied,
+and it's reachable at `https://test2.studiobasa.com/k8smonitoring/` via
+`deploy/k8s/10-httproute.yaml` (v0.1.1 bumped the image specifically to ship
+the relative-path frontend change that subpath routing needed — see that
+file's comments for the redirect+rewrite mechanism). The steps below are
+kept as the reference procedure for redeploying, recovering, or standing
+this up again elsewhere — not a to-do list.
 
 **Known follow-up:** the Basic Auth password was intentionally set to a weak
-value at the operator's explicit request during initial setup. Rotate it
-when convenient:
+value at the operator's explicit request during initial setup, and it's now
+reachable beyond kubectl port-forward — rotate it soon:
 
 ```bash
 kubectl create secret generic k8s-cluster-monitor-auth -n k8s-cluster-monitor \
@@ -131,10 +135,14 @@ comment block in `04-networkpolicy.yaml` for the full detail — if this
 cluster ever migrates off Cilium, that file needs to go back to being a
 plain `NetworkPolicy`, re-tested the same careful way.
 
-`10-httproute.yaml.disabled` is **not** applied by default — see the warning
-comment inside it about combining a cluster-posture dashboard with public
-exposure (this cluster's own audit flagged exactly that combination
-elsewhere as a HIGH risk).
+`10-httproute.yaml` **is applied** — the dashboard is reachable at
+`https://test2.studiobasa.com/k8smonitoring/` (path-prefix on the cluster's
+shared Gateway, same pattern as headlamp-route/monitoring-route/etc). This
+exposes a read-only, Basic-Auth-protected tool over HTTPS — a different risk
+profile than the Headlamp finding (cluster-admin + public exposure) this
+tool's own security check flags elsewhere, but see the "known follow-up"
+note at the top of this file about rotating the Basic Auth password now
+that it's reachable beyond `kubectl port-forward`.
 
 ## GATE 3 — enable scheduling (light confirmation)
 
