@@ -80,16 +80,17 @@ From the `k8s-cluster-monitor/` directory (build context must include both
 `backend/` and `frontend/`):
 
 ```bash
-docker build -f backend/Dockerfile -t <registry>/k8s-cluster-monitor:v0.1.0 .
+docker build -f backend/Dockerfile -t registry.local.cloud:5000/k8s-cluster-monitor:vX.Y.Z .
 ```
 
-Verified locally this session: builds cleanly, runs as non-root (uid 10001),
-and starts correctly under `--read-only --tmpfs /tmp`.
+Verified locally: builds cleanly, runs as non-root (uid 10001), and starts
+correctly under `--read-only --tmpfs /tmp`. Current running version:
+`v0.1.2` (see "Current status" above for what each version shipped).
 
 ## GATE 1 — push to the registry (pause and confirm before doing this)
 
 ```bash
-docker push registry.local.cloud:5000/k8s-cluster-monitor:v0.1.0
+docker push registry.local.cloud:5000/k8s-cluster-monitor:vX.Y.Z
 ```
 
 Check first whether the registry needs auth/an imagePullSecret — inspect an
@@ -158,9 +159,10 @@ plain `NetworkPolicy`, re-tested the same careful way.
 shared Gateway, same pattern as headlamp-route/monitoring-route/etc). This
 exposes a read-only, Basic-Auth-protected tool over HTTPS — a different risk
 profile than the Headlamp finding (cluster-admin + public exposure) this
-tool's own security check flags elsewhere, but see the "known follow-up"
-note at the top of this file about rotating the Basic Auth password now
-that it's reachable beyond `kubectl port-forward`.
+tool's own security check flags elsewhere. Since it's reachable beyond
+`kubectl port-forward` now, consider changing the Basic Auth password from
+the dashboard's Settings tab (see "Auth credential model changed in v0.1.2"
+above) if it hasn't been changed from its initial value yet.
 
 ## GATE 3 — enable scheduling (light confirmation)
 
