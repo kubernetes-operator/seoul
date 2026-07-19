@@ -21,11 +21,21 @@ list.
   the rest. Queries Prometheus for CPU throttling, memory-near-limit,
   node saturation, and (opportunistically, only for namespaces that expose
   `http_request_duration_seconds`) app p95 latency / 5xx error rate.
-- The **load-test feature is disabled by default** even though it shipped
-  in this version — enabling it is a deliberate, separate step:
+- The load-test feature ships **disabled by default**
+  (`MONITOR_LOADTEST_ENABLED=false` in the ConfigMap file) — enabling it is
+  a deliberate, separate step:
   ```bash
   kubectl -n k8s-cluster-monitor patch configmap k8s-cluster-monitor-config \
     --type merge -p '{"data":{"MONITOR_LOADTEST_ENABLED":"true"}}'
+  kubectl -n k8s-cluster-monitor rollout restart deployment/k8s-cluster-monitor
+  ```
+  **Currently enabled on the live deployment** (2026-07-19, operator request)
+  — verified with one real run (`demo-app/web:80`, concurrency 2, 5s cap:
+  hit the 5,000-total-requests ceiling in ~2.7s, 0 errors, p95 1.2ms;
+  `demo-app` pods unaffected). To turn it back off:
+  ```bash
+  kubectl -n k8s-cluster-monitor patch configmap k8s-cluster-monitor-config \
+    --type merge -p '{"data":{"MONITOR_LOADTEST_ENABLED":"false"}}'
   kubectl -n k8s-cluster-monitor rollout restart deployment/k8s-cluster-monitor
   ```
 - Targets are a hardcoded allow-list (`backend/app/load_test.py`'s

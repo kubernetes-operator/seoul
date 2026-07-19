@@ -62,9 +62,9 @@ arbitrary hostnames or external URLs — this is a cluster-internal testing
 feature, not a general-purpose load generator, and the egress
 `CiliumNetworkPolicy` structurally can't reach outside the cluster anyway.
 
-- **Disabled by default**, even after this ships — enable via
-  `MONITOR_LOADTEST_ENABLED=true` in the ConfigMap + a rollout restart (see
-  `deploy/README.md`).
+- Ships **disabled by default** (`MONITOR_LOADTEST_ENABLED`, see
+  `deploy/README.md` to toggle) — **currently enabled** on the live
+  deployment, verified with one real run against `demo-app/web:80`.
 - Hard server-side caps (not just UI limits): duration ≤ 60s, concurrency ≤
   50, total requests ≤ 5,000 per run, GET-only, one load test at a time.
 - Runs in-process (the monitor pod itself issues the requests) rather than
