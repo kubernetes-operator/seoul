@@ -19,3 +19,15 @@ data:
   # before the `schedule` table has a row). Example hourly: "0 * * * *"
   MONITOR_SCHEDULE_CRON: ""
   MONITOR_RETENTION_DAYS: "30"
+
+  # Active load-test feature. Disabled by default even after the code ships —
+  # enabling it is a deliberate, separate operator action (flip to "true" +
+  # rollout restart). MONITOR_LOADTEST_ALLOWED_NAMESPACES is informational/
+  # cross-referenced with backend/app/load_test.py's ALLOWED_TARGETS (the
+  # actual enforcement, namespace+service+port) and with 04-networkpolicy.yaml's
+  # egress rules — all three must be kept in sync by hand if a target is added.
+  MONITOR_LOADTEST_ENABLED: "false"
+  MONITOR_LOADTEST_ALLOWED_NAMESPACES: "demo-app,gitea,model-factory,os-monitor"
+  MONITOR_LOADTEST_MAX_DURATION_SECONDS: "60"
+  MONITOR_LOADTEST_MAX_CONCURRENCY: "50"
+  MONITOR_LOADTEST_MAX_TOTAL_REQUESTS: "5000"

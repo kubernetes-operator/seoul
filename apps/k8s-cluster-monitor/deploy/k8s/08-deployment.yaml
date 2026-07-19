@@ -33,7 +33,7 @@ spec:
           # Replace <registry> and pin an explicit semantic version — never
           # `:latest` (this cluster's own security audit flagged that
           # antipattern elsewhere; no reason to repeat it here).
-          image: registry.local.cloud:5000/k8s-cluster-monitor:v0.1.2
+          image: registry.local.cloud:5000/k8s-cluster-monitor:v0.2.0
           ports:
             - name: http
               containerPort: 8080
@@ -56,12 +56,17 @@ spec:
             - name: tmp
               mountPath: /tmp
           resources:
+            # requests unchanged — idle/scheduled-check behavior is the same
+            # as before. limits raised only to give the (rare, hard-capped,
+            # disabled-by-default) load-test feature headroom for its brief
+            # bursts; still nowhere near a dedicated load generator's
+            # capacity, which is the point — see backend/app/load_test.py.
             requests:
               cpu: 100m
               memory: 128Mi
             limits:
-              cpu: 500m
-              memory: 256Mi
+              cpu: 1000m
+              memory: 512Mi
           readinessProbe:
             httpGet:
               path: /readyz

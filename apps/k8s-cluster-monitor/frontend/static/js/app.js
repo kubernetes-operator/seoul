@@ -2,15 +2,19 @@
 // backend returns WWW-Authenticate: Basic on 401), so fetch() calls to /api
 // just need credentials included — no login form to write here.
 
-const DOMAINS = ["health", "network", "security", "storage_backup", "observability"];
+const DOMAINS = ["health", "network", "security", "storage_backup", "observability", "performance"];
 const DOMAIN_LABELS = {
   health: "헬스", network: "네트워크", security: "보안",
-  storage_backup: "스토리지/백업", observability: "관측성",
+  storage_backup: "스토리지/백업", observability: "관측성", performance: "성능",
 };
 
 async function api(path, opts) {
   const resp = await fetch(path, { credentials: "same-origin", ...opts });
-  if (!resp.ok) throw new Error(`${path} -> ${resp.status}`);
+  if (!resp.ok) {
+    let detail = "";
+    try { detail = (await resp.json()).detail || ""; } catch (e) { /* body wasn't JSON, ignore */ }
+    throw new Error(`${path} -> ${resp.status}${detail ? `: ${detail}` : ""}`);
+  }
   return resp.json();
 }
 
@@ -37,6 +41,7 @@ function switchTab(tab) {
 
   if (tab === "overview") renderOverview();
   else if (DOMAINS.includes(tab)) renderDomainView(tab);
+  else if (tab === "load_test") renderLoadTestTab();
   else if (tab === "chaos") renderChaosTab();
   else if (tab === "settings") renderSettings();
 }
@@ -316,6 +321,119 @@ async function renderSettings() {
         : `실패: ${err.message}`;
     }
   };
+}
+
+// ---------- Load test ----------
+const LOAD_TEST_P95_WARNING_MS = 1000; // mirrors backend/app/load_test.py's P95_WARNING_MS
+
+let _loadtestTargets = null;
+
+async function fetchLoadtestTargets() {
+  if (!_loadtestTargets) _loadtestTargets = await api("api/loadtest/targets");
+  return _loadtestTargets;
+}
+
+function populateLoadtestSelects(targets) {
+  const nsSelect = document.getElementById("lt-namespace");
+  const svcSelect = document.getElementById("lt-service");
+  const portSelect = document.getElementById("lt-port");
+
+  nsSelect.innerHTML = Object.keys(targets.allowed_targets)
+    .map((ns) => `<option value="${ns}">${ns}</option>`).join("");
+
+  function refreshPorts() {
+    const ns = nsSelect.value;
+    const svc = svcSelect.value;
+    const ports = (targets.allowed_targets[ns] || {})[svc] || [];
+    portSelect.innerHTML = ports.map((p) => `<option value="${p}">${p}</option>`).join("");
+  }
+  function refreshServices() {
+    const ns = nsSelect.value;
+    const services = targets.allowed_targets[ns] || {};
+    svcSelect.innerHTML = Object.keys(services).map((s) => `<option value="${s}">${s}</option>`).join("");
+    refreshPorts();
+  }
+
+  nsSelect.onchange = refreshServices;
+  svcSelect.onchange = refreshPorts;
+  refreshServices();
+
+  document.getElementById("lt-concurrency").max = targets.max_concurrency;
+  document.getElementById("lt-duration").max = targets.max_duration_seconds;
+}
+
+async function renderLoadTestTab() {
+  const targets = await fetchLoadtestTargets();
+  document.getElementById("loadtest-disabled-notice").style.display = targets.enabled ? "none" : "block";
+  populateLoadtestSelects(targets);
+  await loadLoadtestHistory();
+
+  document.getElementById("loadtest-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById("loadtest-status");
+    const resultEl = document.getElementById("loadtest-result");
+
+    const namespace = document.getElementById("lt-namespace").value;
+    const service = document.getElementById("lt-service").value;
+    const port = parseInt(document.getElementById("lt-port").value, 10);
+    const path = document.getElementById("lt-path").value || "/";
+    const concurrency = parseInt(document.getElementById("lt-concurrency").value, 10);
+    const duration_seconds = parseFloat(document.getElementById("lt-duration").value);
+
+    const summary = `concurrency ${concurrency} × ${duration_seconds}s × GET against ${namespace}/${service}:${port}${path}`;
+    if (!confirm(`다음 조건으로 부하 테스트를 실행합니다:\n\n${summary}\n\n실제 트래픽이 발생합니다. 계속할까요?`)) {
+      return;
+    }
+
+    statusEl.textContent = "실행 중...";
+    resultEl.style.display = "none";
+    try {
+      const result = await api("api/loadtest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ namespace, service, port, path, concurrency, duration_seconds }),
+      });
+      statusEl.textContent = "완료";
+      renderLoadtestResult(resultEl, result);
+      await loadLoadtestHistory();
+    } catch (err) {
+      statusEl.textContent = `실패: ${err.message}`;
+    }
+  };
+}
+
+function renderLoadtestResult(container, r) {
+  container.style.display = "block";
+  const errorRate = r.total_requests ? r.error_count / r.total_requests : 0;
+  container.innerHTML = `
+    <p><strong>${escapeHtml(r.target)}</strong></p>
+    <p>요청 ${r.total_requests}건, 에러 ${r.error_count}건 (${(errorRate * 100).toFixed(1)}%), achieved RPS ${r.achieved_rps}</p>
+    <p>p50 ${r.p50_ms ?? "-"}ms / p95 ${r.p95_ms ?? "-"}ms / p99 ${r.p99_ms ?? "-"}ms</p>
+  `;
+  if (r.p95_ms != null) {
+    const gaugeEl = document.createElement("div");
+    container.appendChild(gaugeEl);
+    thresholdGauge(gaugeEl, {
+      value: r.p95_ms, max: Math.max(r.p95_ms, LOAD_TEST_P95_WARNING_MS), label: "p95 응답시간", unit: "ms",
+    });
+  }
+}
+
+async function loadLoadtestHistory() {
+  const rows = await api("api/loadtest/history");
+  const tbody = document.getElementById("loadtest-history-body");
+  tbody.innerHTML = rows.map((r) => `
+    <tr>
+      <td>${fmtTime(r.started_at)}</td>
+      <td>${escapeHtml(r.target)}</td>
+      <td>${r.concurrency}</td>
+      <td>${r.total_requests}</td>
+      <td>${r.error_count}</td>
+      <td>${r.p95_ms ?? "-"}ms</td>
+      <td>${r.achieved_rps}</td>
+      <td>${escapeHtml(r.triggered_by)}</td>
+    </tr>
+  `).join("");
 }
 
 function escapeHtml(str) {

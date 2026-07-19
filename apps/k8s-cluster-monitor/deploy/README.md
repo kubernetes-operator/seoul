@@ -3,14 +3,51 @@
 ## Current status: deployed
 
 All three gates below are done. Namespace `k8s-cluster-monitor` is live,
-image `registry.local.cloud:5000/k8s-cluster-monitor:v0.1.2`, schedule
-`0 */6 * * *` (every 6 hours, all 5 domains), `CiliumNetworkPolicy` applied,
-and it's reachable at `https://test2.studiobasa.com/k8stest/` via
-`deploy/k8s/10-httproute.yaml` (v0.1.1 shipped the relative-path frontend
-change subpath routing needed — see that file's comments for the
-redirect+rewrite mechanism; v0.1.2 added self-service password change). The
-steps below are kept as the reference procedure for redeploying,
-recovering, or standing this up again elsewhere — not a to-do list.
+image `registry.local.cloud:5000/k8s-cluster-monitor:v0.2.0`, schedule
+`0 */6 * * *` (every 6 hours, now 6 domains including `performance`),
+`CiliumNetworkPolicy` applied, and it's reachable at
+`https://test2.studiobasa.com/k8stest/` via `deploy/k8s/10-httproute.yaml`
+(v0.1.1 shipped the relative-path frontend change subpath routing needed;
+v0.1.2 added self-service password change; v0.2.0 added the `performance`
+domain and the load-test feature — see "Performance domain & load testing"
+below). The steps below are kept as the reference procedure for
+redeploying, recovering, or standing this up again elsewhere — not a to-do
+list.
+
+## Performance domain & load testing (v0.2.0)
+
+- `performance` is a normal read-only domain (like `health`/`network`/etc)
+  — no new RBAC, no new NetworkPolicy egress, automatically scheduled with
+  the rest. Queries Prometheus for CPU throttling, memory-near-limit,
+  node saturation, and (opportunistically, only for namespaces that expose
+  `http_request_duration_seconds`) app p95 latency / 5xx error rate.
+- The **load-test feature is disabled by default** even though it shipped
+  in this version — enabling it is a deliberate, separate step:
+  ```bash
+  kubectl -n k8s-cluster-monitor patch configmap k8s-cluster-monitor-config \
+    --type merge -p '{"data":{"MONITOR_LOADTEST_ENABLED":"true"}}'
+  kubectl -n k8s-cluster-monitor rollout restart deployment/k8s-cluster-monitor
+  ```
+- Targets are a hardcoded allow-list (`backend/app/load_test.py`'s
+  `ALLOWED_TARGETS`) — `demo-app`, `gitea`, `model-factory`, `os-monitor`,
+  each with specific service:port pairs confirmed live via
+  `kubectl get endpoints -n <ns> <svc>` (not guessed — the Grafana
+  Service-port-vs-container-port mismatch earlier in this file's history is
+  exactly why that check matters; these four happened to match, but it was
+  verified). Adding a fifth target namespace means updating **three**
+  places by hand: `backend/app/load_test.py`'s `ALLOWED_TARGETS`,
+  `deploy/k8s/04-networkpolicy.yaml`'s egress rules, and
+  `MONITOR_LOADTEST_ALLOWED_NAMESPACES` in the ConfigMap (informational —
+  the first two are the actual enforcement).
+- `deploy/k8s/08-deployment.yaml`'s `resources.limits` were bumped (cpu
+  500m→1000m, memory 256Mi→512Mi) to give the load-test feature headroom for
+  its brief, hard-capped bursts; `requests` are unchanged so idle/scheduled
+  behavior is the same as before.
+- Load generation happens in-process (the monitor pod itself, via
+  `httpx.AsyncClient`) — **not** a spawned Job/Pod, which would need
+  `create` on pods/jobs and break the "zero write verbs, ever" RBAC
+  invariant this app has held since it was first deployed. See the module
+  docstring in `backend/app/load_test.py` for the full reasoning.
 
 **Auth credential model changed in v0.1.2:** Basic Auth is no longer read
 from the K8s Secret on every request — it's stored in SQLite (PBKDF2-HMAC

@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from . import scheduler
-from .api import routes_auth, routes_findings, routes_meta, routes_runs, routes_schedule
+from .api import routes_auth, routes_findings, routes_loadtest, routes_meta, routes_runs, routes_schedule
 from .config import settings
 
 
@@ -25,6 +25,7 @@ app.include_router(routes_runs.router, prefix="/api")
 app.include_router(routes_findings.router, prefix="/api")
 app.include_router(routes_schedule.router, prefix="/api")
 app.include_router(routes_auth.router, prefix="/api")
+app.include_router(routes_loadtest.router, prefix="/api")
 
 _static_dir = Path(settings.static_dir)
 if not _static_dir.exists():

@@ -133,8 +133,13 @@ code { background: var(--card-bg); padding: 1px 5px; border-radius: 4px; }
 
 .chart-box { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--card-bg); }
 
-form#settings-form { display: flex; flex-direction: column; gap: 14px; max-width: 480px; }
-form#settings-form input[type=text] {
+form#settings-form, form#password-form, form#loadtest-form {
+  display: flex; flex-direction: column; gap: 14px; max-width: 480px;
+}
+form#settings-form input[type=text],
+form#password-form input,
+form#loadtest-form input,
+form#loadtest-form select {
   display: block; width: 100%; margin-top: 4px; padding: 6px 8px;
   border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg);
 }

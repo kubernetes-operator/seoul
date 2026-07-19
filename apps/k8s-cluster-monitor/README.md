@@ -1,8 +1,11 @@
 # k8s-cluster-monitor
 
 An in-cluster Kubernetes test tool with a web dashboard: runs read-only
-health / network / security / storage-backup / observability checks on a
-schedule or on demand, and shows results as tables and trend graphs.
+health / network / security / storage-backup / observability / performance
+checks on a schedule or on demand, and shows results as tables and trend
+graphs. Also includes an active, human-triggered load-test feature (disabled
+by default) for a small allow-list of in-cluster targets — see "Load
+testing" below.
 
 Grew out of a one-off Claude Code audit of this cluster (see
 `../../.claude/skills/k8s-*-check/SKILL.md` for the original prose specs this
@@ -13,8 +16,8 @@ in-cluster tool deliberately does not automate.
 ## Status
 
 Deployed and running in the `k8s-cluster-monitor` namespace, image
-`registry.local.cloud:5000/k8s-cluster-monitor:v0.1.2`. Schedule: every 6
-hours (`0 */6 * * *`), all 5 domains. See `deploy/README.md` for the full
+`registry.local.cloud:5000/k8s-cluster-monitor:v0.2.0`. Schedule: every 6
+hours (`0 */6 * * *`), all 6 domains. See `deploy/README.md` for the full
 deploy history, including a Cilium-specific NetworkPolicy gotcha hit and
 fixed during rollout (standard `NetworkPolicy` `ipBlock` rules silently
 don't match Cilium's `host`/`kube-apiserver` entities on this cluster — the
@@ -49,6 +52,31 @@ self-service and needs no cluster access. The credential lives in SQLite
 (hashed), not read from the K8s Secret on every request; the Secret is only
 used to seed the very first boot. See `backend/app/auth.py`'s docstring and
 `deploy/README.md` for the reasoning and the lockout-recovery procedure.
+
+### Load testing
+
+**부하 테스트** tab — generates real GET traffic against a small, explicit
+allow-list of in-cluster Services (`demo-app`, `gitea`, `model-factory`,
+`os-monitor`; see `backend/app/load_test.py`'s `ALLOWED_TARGETS`). No
+arbitrary hostnames or external URLs — this is a cluster-internal testing
+feature, not a general-purpose load generator, and the egress
+`CiliumNetworkPolicy` structurally can't reach outside the cluster anyway.
+
+- **Disabled by default**, even after this ships — enable via
+  `MONITOR_LOADTEST_ENABLED=true` in the ConfigMap + a rollout restart (see
+  `deploy/README.md`).
+- Hard server-side caps (not just UI limits): duration ≤ 60s, concurrency ≤
+  50, total requests ≤ 5,000 per run, GET-only, one load test at a time.
+- Runs in-process (the monitor pod itself issues the requests) rather than
+  spawning a separate Job — this app's ClusterRole has zero
+  create/update/patch/delete verbs anywhere, and that stays true for this
+  feature too (see `backend/app/load_test.py`'s module docstring for why
+  spawning a Job was rejected).
+- The form requires confirming the resolved target + params before
+  sending — this generates real traffic against a real (if pre-approved)
+  workload, not a read-only check.
+- Results also appear as a summary Finding (`domain=load_test`) in the
+  unified findings view, in addition to the dedicated history table.
 
 ## Structure
 

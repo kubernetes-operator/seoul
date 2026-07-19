@@ -10,7 +10,7 @@ from typing import Callable
 
 from ..k8s_client import ClusterContext
 from .base import CheckResult
-from . import health, network, security, storage_backup, observability
+from . import health, network, security, storage_backup, observability, performance
 
 DOMAINS: dict[str, Callable[[ClusterContext], CheckResult]] = {
     "health": health.run,
@@ -18,6 +18,7 @@ DOMAINS: dict[str, Callable[[ClusterContext], CheckResult]] = {
     "security": security.run,
     "storage_backup": storage_backup.run,
     "observability": observability.run,
+    "performance": performance.run,
 }
 
 

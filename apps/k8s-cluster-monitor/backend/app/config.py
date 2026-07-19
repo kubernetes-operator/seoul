@@ -28,5 +28,19 @@ class Settings(BaseSettings):
     basic_auth_username_env: str = "BASIC_AUTH_USERNAME"
     basic_auth_password_env: str = "BASIC_AUTH_PASSWORD"
 
+    # Load-test feature — disabled by default even after this ships; see
+    # deploy/README.md. Namespace allow-list must be kept in sync with the
+    # CiliumNetworkPolicy egress rules in deploy/k8s/04-networkpolicy.yaml —
+    # each has a comment cross-referencing the other.
+    loadtest_enabled: bool = False
+    loadtest_allowed_namespaces: str = "demo-app,gitea,model-factory,os-monitor"
+    loadtest_max_duration_seconds: int = 60
+    loadtest_max_concurrency: int = 50
+    loadtest_max_total_requests: int = 5000
+
+    @property
+    def loadtest_allowed_namespaces_list(self) -> list[str]:
+        return [n.strip() for n in self.loadtest_allowed_namespaces.split(",") if n.strip()]
+
 
 settings = Settings()

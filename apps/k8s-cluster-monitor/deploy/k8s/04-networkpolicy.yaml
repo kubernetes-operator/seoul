@@ -75,3 +75,44 @@ spec:
         - ports:
             - port: "3100"
               protocol: TCP
+
+    # Load-test targets (backend/app/load_test.py's ALLOWED_TARGETS, and
+    # config.py's MONITOR_LOADTEST_ALLOWED_NAMESPACES — keep all three in
+    # sync by hand if a target is ever added/removed). Ports below are the
+    # real container/endpoint ports, confirmed via `kubectl get endpoints`
+    # (not the Service port blindly — this cluster's Grafana Service:80 ->
+    # container:3000 mismatch above is exactly why that check matters; these
+    # four happened to match Service port == endpoint port, but it was
+    # verified, not assumed).
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: demo-app
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: gitea
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: model-factory
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: os-monitor
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP

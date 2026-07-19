@@ -16,6 +16,8 @@
     <button data-tab="security" class="tab">보안</button>
     <button data-tab="storage_backup" class="tab">스토리지/백업</button>
     <button data-tab="observability" class="tab">관측성</button>
+    <button data-tab="performance" class="tab">성능</button>
+    <button data-tab="load_test" class="tab">부하 테스트</button>
     <button data-tab="chaos" class="tab">제안된 카오스 테스트</button>
     <button data-tab="settings" class="tab">설정</button>
   </nav>
@@ -37,6 +39,7 @@
         <option value="security">security</option>
         <option value="storage_backup">storage_backup</option>
         <option value="observability">observability</option>
+        <option value="performance">performance</option>
       </select></label>
       <label>기간 <select id="trend-days">
         <option value="7">7일</option>
@@ -52,6 +55,35 @@
   <section id="view-security" class="view domain-view" data-domain="security"></section>
   <section id="view-storage_backup" class="view domain-view" data-domain="storage_backup"></section>
   <section id="view-observability" class="view domain-view" data-domain="observability"></section>
+  <section id="view-performance" class="view domain-view" data-domain="performance"></section>
+
+  <section id="view-load_test" class="view">
+    <h2>부하 테스트</h2>
+    <p id="loadtest-disabled-notice" class="muted" style="display:none">
+      이 기능은 기본적으로 비활성화되어 있습니다. 활성화하려면 배포자가 <code>MONITOR_LOADTEST_ENABLED=true</code>로
+      ConfigMap을 수정하고 파드를 재시작해야 합니다 (deploy/README.md 참고).
+    </p>
+    <p class="muted">
+      실제 트래픽을 발생시킵니다. 대상은 사전 허용된 네임스페이스/서비스로만 제한되며(외부 URL 불가),
+      GET 요청만 지원하고, 동시에 하나의 부하 테스트만 실행할 수 있습니다.
+    </p>
+    <form id="loadtest-form">
+      <label>네임스페이스 <select id="lt-namespace"></select></label>
+      <label>서비스 <select id="lt-service"></select></label>
+      <label>포트 <select id="lt-port"></select></label>
+      <label>경로 <input type="text" id="lt-path" value="/"></label>
+      <label>동시 요청 수 (concurrency) <input type="number" id="lt-concurrency" value="5" min="1"></label>
+      <label>지속 시간 (초) <input type="number" id="lt-duration" value="10" min="0.1" step="0.1"></label>
+      <button type="submit" class="btn-primary">부하 테스트 실행</button>
+      <span id="loadtest-status" class="muted"></span>
+    </form>
+    <div id="loadtest-result" class="chart-box" style="display:none"></div>
+    <h3>이력</h3>
+    <table class="findings-table">
+      <thead><tr><th>시각</th><th>대상</th><th>concurrency</th><th>요청 수</th><th>에러</th><th>p95</th><th>RPS</th><th>실행자</th></tr></thead>
+      <tbody id="loadtest-history-body"></tbody>
+    </table>
+  </section>
 
   <section id="view-chaos" class="view">
     <h2>제안된 카오스/복원력 테스트 (읽기 전용)</h2>
@@ -79,6 +111,7 @@
         <label><input type="checkbox" value="security" class="domain-checkbox" checked> security</label>
         <label><input type="checkbox" value="storage_backup" class="domain-checkbox" checked> storage_backup</label>
         <label><input type="checkbox" value="observability" class="domain-checkbox" checked> observability</label>
+        <label><input type="checkbox" value="performance" class="domain-checkbox" checked> performance</label>
       </fieldset>
       <button type="submit" class="btn-primary">저장</button>
       <span id="settings-status" class="muted"></span>

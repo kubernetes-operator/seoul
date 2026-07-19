@@ -63,6 +63,30 @@ CREATE TABLE IF NOT EXISTS auth_credential (
     salt TEXT NOT NULL,
     updated_at REAL NOT NULL
 );
+
+-- Active load-test results. Doesn't fit the Finding/CheckResult shape (a
+-- distribution/rate result, not a discrete issue) — see load_test.py.
+-- A summary Finding is ALSO written via save_run() under domain="load_test"
+-- so results surface in the unified findings/trend view too.
+CREATE TABLE IF NOT EXISTS load_tests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target TEXT NOT NULL,
+    namespace TEXT NOT NULL,
+    concurrency INTEGER NOT NULL,
+    duration_seconds REAL NOT NULL,
+    total_requests INTEGER NOT NULL,
+    error_count INTEGER NOT NULL,
+    p50_ms REAL,
+    p95_ms REAL,
+    p99_ms REAL,
+    achieved_rps REAL NOT NULL,
+    triggered_by TEXT NOT NULL,
+    status TEXT NOT NULL,
+    status_detail TEXT,
+    started_at REAL NOT NULL,
+    finished_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_load_tests_started ON load_tests(started_at);
 """
 
 
@@ -138,4 +162,25 @@ def prune_old_runs(conn: sqlite3.Connection, retention_days: int) -> None:
     # Long-resolved findings are pruned too, so the table doesn't grow forever;
     # unresolved findings are kept regardless of age (still-open issues matter).
     conn.execute("DELETE FROM findings WHERE resolved_at IS NOT NULL AND resolved_at < ?", (cutoff,))
+    conn.execute("DELETE FROM load_tests WHERE started_at < ?", (cutoff,))
     conn.commit()
+
+
+def save_load_test(conn: sqlite3.Connection, row: dict) -> int:
+    cur = conn.execute(
+        """INSERT INTO load_tests (target, namespace, concurrency, duration_seconds, total_requests,
+                                    error_count, p50_ms, p95_ms, p99_ms, achieved_rps, triggered_by,
+                                    status, status_detail, started_at, finished_at)
+           VALUES (:target, :namespace, :concurrency, :duration_seconds, :total_requests,
+                   :error_count, :p50_ms, :p95_ms, :p99_ms, :achieved_rps, :triggered_by,
+                   :status, :status_detail, :started_at, :finished_at)""",
+        row,
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_load_tests(conn: sqlite3.Connection, limit: int = 50) -> list[dict]:
+    rows = conn.execute("SELECT * FROM load_tests ORDER BY started_at DESC LIMIT ?", (limit,)).fetchall()
+    columns = [c[0] for c in conn.execute("SELECT * FROM load_tests LIMIT 0").description]
+    return [dict(zip(columns, row)) for row in rows]
