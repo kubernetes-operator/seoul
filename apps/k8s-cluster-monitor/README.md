@@ -23,11 +23,11 @@ that reason, not a portability oversight).
 
 ## Accessing the dashboard
 
-**https://test2.studiobasa.com/k8smonitoring/** — exposed via the cluster's
+**https://test2.studiobasa.com/k8stest/** — exposed via the cluster's
 shared Gateway, same pattern as Headlamp/Grafana/etc (`deploy/k8s/10-httproute.yaml`).
 Log in with the Basic Auth username/password (change it any time from the
 **Settings tab** — see "Changing the password" below). Note the trailing
-slash — `/k8smonitoring` without it 302-redirects to the slash form (needed
+slash — `/k8stest` without it 302-redirects to the slash form (needed
 because, unlike Grafana/Headlamp, this app isn't natively subpath-aware; the
 frontend uses relative asset/API paths instead, which only resolve
 correctly under the trailing-slash URL — see the comment block in

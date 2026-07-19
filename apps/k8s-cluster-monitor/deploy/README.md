@@ -5,7 +5,7 @@
 All three gates below are done. Namespace `k8s-cluster-monitor` is live,
 image `registry.local.cloud:5000/k8s-cluster-monitor:v0.1.2`, schedule
 `0 */6 * * *` (every 6 hours, all 5 domains), `CiliumNetworkPolicy` applied,
-and it's reachable at `https://test2.studiobasa.com/k8smonitoring/` via
+and it's reachable at `https://test2.studiobasa.com/k8stest/` via
 `deploy/k8s/10-httproute.yaml` (v0.1.1 shipped the relative-path frontend
 change subpath routing needed — see that file's comments for the
 redirect+rewrite mechanism; v0.1.2 added self-service password change). The
@@ -154,7 +154,7 @@ cluster ever migrates off Cilium, that file needs to go back to being a
 plain `NetworkPolicy`, re-tested the same careful way.
 
 `10-httproute.yaml` **is applied** — the dashboard is reachable at
-`https://test2.studiobasa.com/k8smonitoring/` (path-prefix on the cluster's
+`https://test2.studiobasa.com/k8stest/` (path-prefix on the cluster's
 shared Gateway, same pattern as headlamp-route/monitoring-route/etc). This
 exposes a read-only, Basic-Auth-protected tool over HTTPS — a different risk
 profile than the Headlamp finding (cluster-admin + public exposure) this

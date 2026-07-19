@@ -1,4 +1,4 @@
-# Exposes the dashboard at https://test2.studiobasa.com/k8smonitoring/ via
+# Exposes the dashboard at https://test2.studiobasa.com/k8stest/ via
 # the cluster's shared Gateway (same pattern as headlamp-route/monitoring-route
 # etc. — one hostname, path-prefix per app).
 #
@@ -10,7 +10,7 @@
 #      this makes the browser correctly prepend whatever prefix it was
 #      loaded under, but ONLY if the page is loaded WITH a trailing slash.
 #   2. Rule 1 below redirects the no-trailing-slash form to the
-#      trailing-slash form; rule 2 strips the /k8smonitoring prefix
+#      trailing-slash form; rule 2 strips the /k8stest prefix
 #      (URLRewrite/ReplacePrefixMatch) before forwarding, so the FastAPI
 #      backend keeps seeing plain root-relative paths and needs no changes.
 #
@@ -35,22 +35,22 @@ spec:
       namespace: default
       sectionName: https
   rules:
-    # /k8smonitoring (no trailing slash) -> redirect to /k8smonitoring/
+    # /k8stest (no trailing slash) -> redirect to /k8stest/
     - matches:
         - path:
             type: Exact
-            value: /k8smonitoring
+            value: /k8stest
       filters:
         - type: RequestRedirect
           requestRedirect:
             path:
               type: ReplaceFullPath
-              replaceFullPath: /k8smonitoring/
-    # /k8smonitoring/... -> strip prefix, forward to the app
+              replaceFullPath: /k8stest/
+    # /k8stest/... -> strip prefix, forward to the app
     - matches:
         - path:
             type: PathPrefix
-            value: /k8smonitoring
+            value: /k8stest
       filters:
         - type: URLRewrite
           urlRewrite:
