@@ -4,7 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>k8s-cluster-monitor</title>
-<link rel="stylesheet" href="css/style.css">
+<!-- Cache-busting query param on static assets: Cloudflare (fronting this
+     app's public URL) adds its own ~4h browser Cache-Control to .js/.css
+     regardless of what this app's own headers say, so a plain filename
+     reference can silently keep serving a stale script after a deploy —
+     that's exactly what caused the "성능 tab renders blank" issue on
+     2026-07-19 (fresh index.html + stale cached app.js without the new
+     tab's JS). Bump ?v=X.Y.Z here every time frontend/static changes,
+     alongside the image tag. -->
+<link rel="stylesheet" href="css/style.css?v=0.2.1">
 </head>
 <body>
 <header class="topbar">
@@ -138,7 +146,7 @@
   </section>
 </main>
 
-<script src="js/charts.js"></script>
-<script src="js/app.js"></script>
+<script src="js/charts.js?v=0.2.1"></script>
+<script src="js/app.js?v=0.2.1"></script>
 </body>
 </html>
