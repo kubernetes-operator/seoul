@@ -13,7 +13,7 @@ in-cluster tool deliberately does not automate.
 ## Status
 
 Deployed and running in the `k8s-cluster-monitor` namespace, image
-`registry.local.cloud:5000/k8s-cluster-monitor:v0.1.1`. Schedule: every 6
+`registry.local.cloud:5000/k8s-cluster-monitor:v0.1.2`. Schedule: every 6
 hours (`0 */6 * * *`), all 5 domains. See `deploy/README.md` for the full
 deploy history, including a Cilium-specific NetworkPolicy gotcha hit and
 fixed during rollout (standard `NetworkPolicy` `ipBlock` rules silently
@@ -25,13 +25,13 @@ that reason, not a portability oversight).
 
 **https://test2.studiobasa.com/k8smonitoring/** — exposed via the cluster's
 shared Gateway, same pattern as Headlamp/Grafana/etc (`deploy/k8s/10-httproute.yaml`).
-Log in with the Basic Auth username/password created at deploy time
-(`k8s-cluster-monitor-auth` Secret in the `k8s-cluster-monitor` namespace).
-Note the trailing slash — `/k8smonitoring` without it 302-redirects to the
-slash form (needed because, unlike Grafana/Headlamp, this app isn't natively
-subpath-aware; the frontend uses relative asset/API paths instead, which
-only resolve correctly under the trailing-slash URL — see the comment block
-in `deploy/k8s/10-httproute.yaml` for the full mechanism).
+Log in with the Basic Auth username/password (change it any time from the
+**Settings tab** — see "Changing the password" below). Note the trailing
+slash — `/k8smonitoring` without it 302-redirects to the slash form (needed
+because, unlike Grafana/Headlamp, this app isn't natively subpath-aware; the
+frontend uses relative asset/API paths instead, which only resolve
+correctly under the trailing-slash URL — see the comment block in
+`deploy/k8s/10-httproute.yaml` for the full mechanism).
 
 **Port-forward (no cluster/DNS dependency, useful for local debugging):**
 
@@ -41,6 +41,14 @@ kubectl -n k8s-cluster-monitor port-forward svc/k8s-cluster-monitor 8080:80
 
 Then open `http://localhost:8080` (no trailing-slash subtlety at the root
 path). `Ctrl+C` to stop it when done.
+
+### Changing the password
+
+Settings tab → "비밀번호 변경" — requires the current password, so this is
+self-service and needs no cluster access. The credential lives in SQLite
+(hashed), not read from the K8s Secret on every request; the Secret is only
+used to seed the very first boot. See `backend/app/auth.py`'s docstring and
+`deploy/README.md` for the reasoning and the lockout-recovery procedure.
 
 ## Structure
 

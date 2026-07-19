@@ -283,6 +283,39 @@ async function renderSettings() {
       statusEl.textContent = `실패: ${err.message}`;
     }
   };
+
+  document.getElementById("password-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById("password-status");
+    const current_password = document.getElementById("current-password").value;
+    const new_username = document.getElementById("new-username").value.trim() || null;
+    const new_password = document.getElementById("new-password").value;
+    const confirm = document.getElementById("new-password-confirm").value;
+
+    if (new_password !== confirm) {
+      statusEl.textContent = "새 비밀번호가 일치하지 않습니다.";
+      return;
+    }
+    if (new_password.length < 8) {
+      statusEl.textContent = "새 비밀번호는 8자 이상이어야 합니다.";
+      return;
+    }
+
+    statusEl.textContent = "변경 중...";
+    try {
+      await api("api/auth/password", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current_password, new_username, new_password }),
+      });
+      statusEl.textContent = "변경됨 — 새 로그인 정보로 다시 로그인합니다...";
+      setTimeout(() => location.reload(), 1500);
+    } catch (err) {
+      statusEl.textContent = err.message.includes("401")
+        ? "현재 비밀번호가 올바르지 않습니다."
+        : `실패: ${err.message}`;
+    }
+  };
 }
 
 function escapeHtml(str) {

@@ -3,26 +3,44 @@
 ## Current status: deployed
 
 All three gates below are done. Namespace `k8s-cluster-monitor` is live,
-image `registry.local.cloud:5000/k8s-cluster-monitor:v0.1.1`, schedule
+image `registry.local.cloud:5000/k8s-cluster-monitor:v0.1.2`, schedule
 `0 */6 * * *` (every 6 hours, all 5 domains), `CiliumNetworkPolicy` applied,
 and it's reachable at `https://test2.studiobasa.com/k8smonitoring/` via
-`deploy/k8s/10-httproute.yaml` (v0.1.1 bumped the image specifically to ship
-the relative-path frontend change that subpath routing needed — see that
-file's comments for the redirect+rewrite mechanism). The steps below are
-kept as the reference procedure for redeploying, recovering, or standing
-this up again elsewhere — not a to-do list.
+`deploy/k8s/10-httproute.yaml` (v0.1.1 shipped the relative-path frontend
+change subpath routing needed — see that file's comments for the
+redirect+rewrite mechanism; v0.1.2 added self-service password change). The
+steps below are kept as the reference procedure for redeploying,
+recovering, or standing this up again elsewhere — not a to-do list.
 
-**Known follow-up:** the Basic Auth password was intentionally set to a weak
-value at the operator's explicit request during initial setup, and it's now
-reachable beyond kubectl port-forward — rotate it soon:
+**Auth credential model changed in v0.1.2:** Basic Auth is no longer read
+from the K8s Secret on every request — it's stored in SQLite (PBKDF2-HMAC
+hash + salt), seeded from the Secret's env vars only once, the first time
+the pod ever starts against an empty database. Change it from the
+dashboard's Settings page (requires the current password); the Secret is
+now only a bootstrap/recovery mechanism, not the live value. This was a
+deliberate choice to avoid giving the app any `secrets` RBAC (see
+`backend/app/auth.py` docstring for the full reasoning).
+
+**If locked out** (forgot the changed password, no Secret access needed):
+
+```bash
+kubectl -n k8s-cluster-monitor exec deploy/k8s-cluster-monitor -- \
+  python3 -c "import sqlite3; sqlite3.connect('/data/monitor.db').execute('DELETE FROM auth_credential').close()"
+kubectl -n k8s-cluster-monitor rollout restart deployment/k8s-cluster-monitor
+```
+
+This re-seeds from whatever the `k8s-cluster-monitor-auth` Secret currently
+holds. To change what it re-seeds to:
 
 ```bash
 kubectl create secret generic k8s-cluster-monitor-auth -n k8s-cluster-monitor \
   --from-literal=BASIC_AUTH_USERNAME=admin \
   --from-literal=BASIC_AUTH_PASSWORD="$(openssl rand -base64 24)" \
   --dry-run=client -o yaml | kubectl apply -f -
-kubectl -n k8s-cluster-monitor rollout restart deployment/k8s-cluster-monitor
 ```
+
+(this alone has no effect on a running deployment until the `auth_credential`
+row is cleared as above — the database is authoritative once seeded).
 
 ## What this is
 

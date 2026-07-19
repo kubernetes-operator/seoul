@@ -51,6 +51,18 @@ CREATE TABLE IF NOT EXISTS schedule (
     cron TEXT,
     enabled_domains TEXT NOT NULL DEFAULT 'health,network,security,storage_backup,observability'
 );
+
+-- Basic Auth credential, PBKDF2-HMAC hash + random salt (never plaintext).
+-- Seeded once from the K8s Secret's env vars on first boot (see auth.py);
+-- authoritative after that, so it can be changed from the dashboard without
+-- this app ever needing `secrets` RBAC to write back to the Secret.
+CREATE TABLE IF NOT EXISTS auth_credential (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    username TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    updated_at REAL NOT NULL
+);
 """
 
 
