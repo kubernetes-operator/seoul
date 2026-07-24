@@ -32,6 +32,9 @@ function initTabs() {
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
   });
+  // Clicking the title returns to the main (overview) screen.
+  const home = document.getElementById("home-link");
+  if (home) home.addEventListener("click", () => switchTab("overview"));
 }
 
 function switchTab(tab) {

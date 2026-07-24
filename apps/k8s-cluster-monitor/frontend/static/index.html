@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>k8s-cluster-monitor</title>
+<title>k8s-cluster-tester</title>
 <!-- Cache-busting query param on static assets: Cloudflare (fronting this
      app's public URL) adds its own ~4h browser Cache-Control to .js/.css
      regardless of what this app's own headers say, so a plain filename
@@ -12,11 +12,11 @@
      2026-07-19 (fresh index.html + stale cached app.js without the new
      tab's JS). Bump ?v=X.Y.Z here every time frontend/static changes,
      alongside the image tag. -->
-<link rel="stylesheet" href="css/style.css?v=0.2.3">
+<link rel="stylesheet" href="css/style.css?v=0.2.4">
 </head>
 <body>
 <header class="topbar">
-  <h1>k8s-cluster-monitor</h1>
+  <h1><button type="button" id="home-link" class="home-link">k8s-cluster-tester</button></h1>
   <nav id="tabs">
     <button data-tab="overview" class="tab active">개요</button>
     <button data-tab="health" class="tab">헬스</button>
@@ -180,7 +180,7 @@
   </div>
 </div>
 
-<script src="js/charts.js?v=0.2.3"></script>
-<script src="js/app.js?v=0.2.3"></script>
+<script src="js/charts.js?v=0.2.4"></script>
+<script src="js/app.js?v=0.2.4"></script>
 </body>
 </html>
