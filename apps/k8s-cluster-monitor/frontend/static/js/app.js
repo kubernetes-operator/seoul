@@ -75,8 +75,10 @@ function showApp(username) {
   document.getElementById("user-area").hidden = false;
   document.getElementById("app").hidden = false;
   document.getElementById("current-user").textContent = `${username} 님`;
+  currentTab = "overview";
   initTabs();
   renderOverview();
+  initAutoRefresh();
 }
 
 async function logout() {
@@ -144,7 +146,10 @@ function initTabs() {
   if (home) home.addEventListener("click", () => switchTab("overview"));
 }
 
+let currentTab = "overview";
+
 function switchTab(tab) {
+  currentTab = tab;
   document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   document.getElementById(`view-${tab}`).classList.add("active");
@@ -154,6 +159,45 @@ function switchTab(tab) {
   else if (tab === "load_test") renderLoadTestTab();
   else if (tab === "chaos") renderChaosTab();
   else if (tab === "settings") renderSettings();
+}
+
+// ---------- Auto-refresh ----------
+// Soft re-render on a timer (no full page reload — avoids re-running the login
+// gate and losing scroll). Only data views are refreshed; the load_test /
+// chaos / settings tabs have forms or static content that a refresh would
+// clobber, so they're skipped for that tick.
+const REFRESH_KEY = "kct_refresh_interval";
+const REFRESH_OPTIONS = ["10", "30", "60", "600", "off"];
+let _refreshTimer = null;
+
+function refreshCurrentView() {
+  if (currentTab === "overview") renderOverview();
+  else if (DOMAINS.includes(currentTab)) renderDomainView(currentTab);
+  else return; // don't auto-refresh form/static tabs
+  markRefreshed();
+}
+
+function markRefreshed() {
+  const el = document.getElementById("last-refresh");
+  if (el) el.textContent = `갱신 ${new Date().toLocaleTimeString("ko-KR")}`;
+}
+
+function applyRefreshInterval(value) {
+  if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
+  try { localStorage.setItem(REFRESH_KEY, value); } catch (e) { /* private mode: ignore */ }
+  if (value !== "off") _refreshTimer = setInterval(refreshCurrentView, Number(value) * 1000);
+}
+
+function initAutoRefresh() {
+  const sel = document.getElementById("refresh-interval");
+  if (!sel) return;
+  let saved = "60"; // default: 1분
+  try { saved = localStorage.getItem(REFRESH_KEY) || "60"; } catch (e) { /* ignore */ }
+  if (!REFRESH_OPTIONS.includes(saved)) saved = "60";
+  sel.value = saved;
+  sel.onchange = () => applyRefreshInterval(sel.value);
+  applyRefreshInterval(saved);
+  markRefreshed();
 }
 
 // ---------- Overview ----------

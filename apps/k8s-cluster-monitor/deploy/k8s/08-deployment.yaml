@@ -33,7 +33,7 @@ spec:
           # Replace <registry> and pin an explicit semantic version — never
           # `:latest` (this cluster's own security audit flagged that
           # antipattern elsewhere; no reason to repeat it here).
-          image: registry.local.cloud:5000/k8s-cluster-monitor:v0.3.2
+          image: registry.local.cloud:5000/k8s-cluster-monitor:v0.3.3
           ports:
             - name: http
               containerPort: 8080

@@ -56,7 +56,9 @@ body {
 
 #tabs { display: flex; gap: 4px; flex-wrap: wrap; }
 
-.user-area { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.user-area { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.refresh-control { display: inline-flex; align-items: center; gap: 6px; }
+#last-refresh { font-variant-numeric: tabular-nums; }
 .login-box { max-width: 360px; }
 .login-title { color: var(--info); }
 .login-box label { display: block; margin-bottom: 12px; font-size: 13px; }

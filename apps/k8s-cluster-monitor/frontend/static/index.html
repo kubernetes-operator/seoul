@@ -12,7 +12,7 @@
      2026-07-19 (fresh index.html + stale cached app.js without the new
      tab's JS). Bump ?v=X.Y.Z here every time frontend/static changes,
      alongside the image tag. -->
-<link rel="stylesheet" href="css/style.css?v=0.3.2">
+<link rel="stylesheet" href="css/style.css?v=0.3.3">
 </head>
 <body>
 <header class="topbar">
@@ -30,6 +30,16 @@
     <button data-tab="settings" class="tab">설정</button>
   </nav>
   <div id="user-area" class="user-area" hidden>
+    <label class="refresh-control muted">자동 새로고침
+      <select id="refresh-interval">
+        <option value="10">10초</option>
+        <option value="30">30초</option>
+        <option value="60">1분</option>
+        <option value="600">10분</option>
+        <option value="off">안 함</option>
+      </select>
+    </label>
+    <span id="last-refresh" class="muted"></span>
     <span id="current-user" class="muted"></span>
     <button type="button" id="logout-btn" class="btn-secondary">로그아웃</button>
   </div>
@@ -226,7 +236,7 @@
   </div>
 </div>
 
-<script src="js/charts.js?v=0.3.2"></script>
-<script src="js/app.js?v=0.3.2"></script>
+<script src="js/charts.js?v=0.3.3"></script>
+<script src="js/app.js?v=0.3.3"></script>
 </body>
 </html>
