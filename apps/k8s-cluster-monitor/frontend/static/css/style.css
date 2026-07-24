@@ -80,6 +80,64 @@ main { padding: 20px; max-width: 1100px; margin: 0 auto; }
 }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.btn-secondary {
+  background: var(--card-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn-danger {
+  background: var(--critical);
+  color: #ffffff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Chaos confirmation modal */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; z-index: 1000;
+}
+.modal-overlay[hidden] { display: none; }
+.modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 22px;
+  max-width: 560px; width: 100%;
+  max-height: 85vh; overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+.modal-title { margin: 0 0 8px; color: var(--critical); font-size: 18px; }
+.modal-test-name { font-weight: 600; margin: 0 0 10px; }
+.modal-meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0 0 12px; }
+.modal-meta dt { color: var(--muted); font-size: 13px; }
+.modal-meta dd { margin: 0; font-size: 14px; }
+.modal-warn {
+  font-size: 13px; background: var(--card-bg);
+  border-left: 3px solid var(--warning);
+  padding: 10px 12px; border-radius: 6px; margin: 0 0 14px;
+}
+.cmd-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+#chaos-modal-cmd-pre {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px; margin: 0 0 8px;
+  overflow-x: auto; font-size: 13px;
+  white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

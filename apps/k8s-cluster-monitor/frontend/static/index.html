@@ -12,7 +12,7 @@
      2026-07-19 (fresh index.html + stale cached app.js without the new
      tab's JS). Bump ?v=X.Y.Z here every time frontend/static changes,
      alongside the image tag. -->
-<link rel="stylesheet" href="css/style.css?v=0.2.1">
+<link rel="stylesheet" href="css/style.css?v=0.2.3">
 </head>
 <body>
 <header class="topbar">
@@ -94,13 +94,16 @@
   </section>
 
   <section id="view-chaos" class="view">
-    <h2>제안된 카오스/복원력 테스트 (읽기 전용)</h2>
+    <h2>제안된 카오스/복원력 테스트</h2>
     <p class="muted">
-      이 도구는 클러스터 상태를 바꾸는 어떤 버튼도 제공하지 않습니다. 파괴적 테스트는
-      <code>k8s-resilience-test</code> 스킬(Claude Code)을 통해 사람이 각 단계마다 직접 승인한 뒤에만 실행하세요.
+      이 도구는 클러스터 상태를 바꾸는 명령을 <strong>직접 실행하지 않습니다</strong>. 각 항목의
+      <strong>실행</strong> 버튼은 경고창(실행/취소)을 띄운 뒤, 승인하면 클러스터를 변경하는 대신
+      해당 테스트의 정확한 <code>kubectl</code> 명령·절차를 복사할 수 있게 보여줍니다. 실제 파괴적
+      테스트는 그 명령을 사람이 직접 실행하거나 <code>k8s-resilience-test</code> 스킬(Claude Code)을
+      통해 단계별 승인 후 수행하세요.
     </p>
     <table class="findings-table">
-      <thead><tr><th>테스트</th><th>대상</th><th>예상 영향</th><th>승인 상태</th></tr></thead>
+      <thead><tr><th>테스트</th><th>대상</th><th>예상 영향</th><th>승인 상태</th><th>실행</th></tr></thead>
       <tbody id="chaos-table-body"></tbody>
     </table>
   </section>
@@ -146,7 +149,38 @@
   </section>
 </main>
 
-<script src="js/charts.js?v=0.2.1"></script>
-<script src="js/app.js?v=0.2.1"></script>
+<!-- Chaos "실행" confirmation modal. Deliberately NOT wired to any mutating
+     API — on confirm it reveals copy-ready kubectl commands, keeping this
+     app's zero-mutation invariant intact (see deploy/k8s/02-clusterrole.yaml,
+     which has no create/update/patch/delete verbs anywhere). -->
+<div id="chaos-modal" class="modal-overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="chaos-modal-title">
+    <h3 id="chaos-modal-title" class="modal-title">⚠ 카오스 테스트 실행 확인</h3>
+    <p id="chaos-modal-name" class="modal-test-name"></p>
+    <dl class="modal-meta">
+      <dt>대상</dt><dd id="chaos-modal-target"></dd>
+      <dt>예상 영향</dt><dd id="chaos-modal-impact"></dd>
+    </dl>
+    <p class="modal-warn">
+      이 앱은 클러스터를 직접 변경하지 않습니다. <strong>실행</strong>을 누르면 아래에 이 테스트의
+      정확한 명령이 표시되며, 이를 직접 실행할지는 사람이 결정합니다.
+    </p>
+    <div id="chaos-modal-commands" hidden>
+      <div class="cmd-header">
+        <span class="muted">아래 명령을 직접 실행하세요 (클러스터 미변경):</span>
+        <button type="button" id="chaos-copy-btn" class="btn-secondary">복사</button>
+      </div>
+      <pre id="chaos-modal-cmd-pre"></pre>
+      <p id="chaos-modal-note" class="muted"></p>
+    </div>
+    <div class="modal-actions">
+      <button type="button" id="chaos-cancel-btn" class="btn-secondary">취소</button>
+      <button type="button" id="chaos-confirm-btn" class="btn-danger">실행</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/charts.js?v=0.2.3"></script>
+<script src="js/app.js?v=0.2.3"></script>
 </body>
 </html>

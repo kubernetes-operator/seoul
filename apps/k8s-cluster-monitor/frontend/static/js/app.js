@@ -235,20 +235,140 @@ async function renderDomainViz(domain, container) {
   }
 }
 
-// ---------- Chaos tab (static, read-only) ----------
+// ---------- Chaos tab ----------
+// NOTE: The "실행" button here NEVER mutates the cluster. On confirm it reveals
+// the copy-ready kubectl commands below (mirrored from the k8s-resilience-test
+// skill), which a human then decides whether to run. This app's ClusterRole
+// has no create/update/patch/delete verbs (deploy/k8s/02-clusterrole.yaml), so
+// there is intentionally no server endpoint to wire this to — the safety net is
+// structural, not just UI copy. Placeholders (<pod-name>, <node>, <svc>, <ns>)
+// are left literal on purpose: the operator fills in the concrete target, which
+// forces a deliberate choice rather than a one-click destructive action.
 const CHAOS_TESTS = [
-  { name: "파드 삭제 → 자가치유 확인", target: "임의 워크로드 파드 1개", impact: "레플리카 2개 이상이면 무중단, 1개면 순단", status: "manual — k8s-resilience-test 스킬로 사람이 직접 승인 후 실행" },
-  { name: "노드 cordon+drain → 재스케줄링 확인", target: "워커 노드 1대 (컨트롤플레인 제외)", impact: "해당 노드 파드 일시 재시작", status: "manual — k8s-resilience-test 스킬로 사람이 직접 승인 후 실행" },
-  { name: "PodDisruptionBudget 위반 테스트", target: "PDB 설정된 워크로드", impact: "정상이라면 드레인이 차단됨 (보호 확인)", status: "manual — k8s-resilience-test 스킬로 사람이 직접 승인 후 실행" },
-  { name: "HPA 부하 테스트", target: "HPA 설정된 서비스", impact: "일시적 리소스 사용량 증가, 스케일 아웃 확인", status: "manual — k8s-resilience-test 스킬로 사람이 직접 승인 후 실행" },
-  { name: "LoadBalancer/Gateway 일부 백엔드 재시작", target: "다중 레플리카 서비스의 파드 일부", impact: "나머지 정상 파드로 트래픽 유지되는지 확인", status: "manual — k8s-resilience-test 스킬로 사람이 직접 승인 후 실행" },
+  {
+    name: "파드 삭제 → 자가치유 확인",
+    target: "임의 워크로드 파드 1개",
+    impact: "레플리카 2개 이상이면 무중단, 1개면 순단",
+    status: "manual — k8s-resilience-test 스킬로 사람이 직접 승인 후 실행",
+    commands: [
+      "kubectl delete pod <pod-name> -n <ns>",
+      "kubectl get pods -n <ns> -w   # 재생성 확인 후 Ctrl-C",
+    ],
+    note: "재생성 시간과 최종 상태(Running/CrashLoopBackOff 등)를 기록하세요.",
+  },
+  {
+    name: "노드 cordon+drain → 재스케줄링 확인",
+    target: "워커 노드 1대 (컨트롤플레인 제외)",
+    impact: "해당 노드 파드 일시 재시작",
+    status: "manual — k8s-resilience-test 스킬로 사람이 직접 승인 후 실행",
+    commands: [
+      "kubectl cordon <node>",
+      "kubectl drain <node> --ignore-daemonsets --delete-emptydir-data --timeout=120s",
+      "kubectl get pods -A -o wide   # 재스케줄링 확인",
+      "kubectl uncordon <node>   # 원상복구",
+    ],
+    note: "컨트롤플레인 노드(playcekubectr01~03)는 쿼럼 손실 위험이 있어 드레인 대상에서 제외하세요.",
+  },
+  {
+    name: "PodDisruptionBudget 위반 테스트",
+    target: "PDB 설정된 워크로드",
+    impact: "정상이라면 드레인이 차단됨 (보호 확인)",
+    status: "manual — k8s-resilience-test 스킬로 사람이 직접 승인 후 실행",
+    commands: [
+      "kubectl drain <node> --ignore-daemonsets --delete-emptydir-data --timeout=120s",
+    ],
+    note: "minAvailable을 위반하는 수의 파드를 동시에 드레인 시도합니다. 드레인이 차단되면(타임아웃/에러) PDB가 정상 보호 중이라는 뜻이므로 성공으로 기록하고 강제하지 마세요.",
+  },
+  {
+    name: "HPA 부하 테스트",
+    target: "HPA 설정된 서비스",
+    impact: "일시적 리소스 사용량 증가, 스케일 아웃 확인",
+    status: "manual — k8s-resilience-test 스킬로 사람이 직접 승인 후 실행",
+    commands: [
+      "kubectl run load-gen --rm -it --restart=Never --image=busybox -- \\",
+      "  /bin/sh -c \"while true; do wget -q -O- http://<svc>.<ns>.svc.cluster.local; done\"",
+      "kubectl get hpa -w   # 스케일 아웃 반응 시간 기록",
+    ],
+    note: "테스트 종료 시 부하 생성 파드를 확실히 종료하세요(--rm 또는 수동 delete).",
+  },
+  {
+    name: "LoadBalancer/Gateway 일부 백엔드 재시작",
+    target: "다중 레플리카 서비스의 파드 일부",
+    impact: "나머지 정상 파드로 트래픽 유지되는지 확인",
+    status: "manual — k8s-resilience-test 스킬로 사람이 직접 승인 후 실행",
+    commands: [
+      "kubectl delete pod <backend-pod> -n <ns>   # 일부 백엔드만",
+    ],
+    note: "모든 백엔드를 동시에 삭제(완전 중단)하지 마세요. 나머지 정상 파드로 트래픽이 유지되는지 관찰합니다.",
+  },
 ];
 
 function renderChaosTab() {
   const tbody = document.getElementById("chaos-table-body");
-  tbody.innerHTML = CHAOS_TESTS.map((t) => `
-    <tr><td>${t.name}</td><td>${t.target}</td><td>${t.impact}</td><td class="muted">${t.status}</td></tr>
+  tbody.innerHTML = CHAOS_TESTS.map((t, i) => `
+    <tr>
+      <td>${t.name}</td><td>${t.target}</td><td>${t.impact}</td>
+      <td class="muted">${t.status}</td>
+      <td><button type="button" class="btn-danger chaos-run-btn" data-index="${i}">실행</button></td>
+    </tr>
   `).join("");
+  tbody.querySelectorAll(".chaos-run-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openChaosModal(Number(btn.dataset.index)));
+  });
+}
+
+// ---------- Chaos confirmation modal (never mutates the cluster) ----------
+function openChaosModal(index) {
+  const t = CHAOS_TESTS[index];
+  if (!t) return;
+  const overlay = document.getElementById("chaos-modal");
+
+  document.getElementById("chaos-modal-name").textContent = t.name;
+  document.getElementById("chaos-modal-target").textContent = t.target;
+  document.getElementById("chaos-modal-impact").textContent = t.impact;
+
+  const cmdText = t.commands.join("\n");
+  document.getElementById("chaos-modal-cmd-pre").textContent = cmdText;
+  document.getElementById("chaos-modal-note").textContent = t.note || "";
+
+  // Reset to the pre-confirm state each time it opens.
+  const commandsEl = document.getElementById("chaos-modal-commands");
+  commandsEl.hidden = true;
+  const confirmBtn = document.getElementById("chaos-confirm-btn");
+  confirmBtn.disabled = false;
+
+  confirmBtn.onclick = () => {
+    // Reveal the commands. No fetch(), no cluster change — by design.
+    commandsEl.hidden = false;
+    confirmBtn.disabled = true;
+  };
+  document.getElementById("chaos-cancel-btn").onclick = closeChaosModal;
+  document.getElementById("chaos-copy-btn").onclick = () => copyChaosCommands(cmdText);
+  overlay.onclick = (e) => { if (e.target === overlay) closeChaosModal(); };
+
+  overlay.hidden = false;
+}
+
+function closeChaosModal() {
+  document.getElementById("chaos-modal").hidden = true;
+}
+
+async function copyChaosCommands(text) {
+  const btn = document.getElementById("chaos-copy-btn");
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = "복사됨 ✓";
+  } catch (e) {
+    // Clipboard API needs a secure context / permission; fall back to select-all.
+    const pre = document.getElementById("chaos-modal-cmd-pre");
+    const range = document.createRange();
+    range.selectNodeContents(pre);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    btn.textContent = "직접 복사하세요 (Ctrl+C)";
+  }
+  setTimeout(() => { btn.textContent = "복사"; }, 2000);
 }
 
 // ---------- Settings ----------
