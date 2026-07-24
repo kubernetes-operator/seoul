@@ -3,12 +3,12 @@ from __future__ import annotations
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..auth import require_basic_auth
+from ..auth import require_session
 from ..checks.registry import DOMAINS
 from .. import scheduler
 from ..db import get_db
 
-router = APIRouter(dependencies=[Depends(require_basic_auth)])
+router = APIRouter(dependencies=[Depends(require_session)])
 
 
 class ScheduleUpdate(BaseModel):

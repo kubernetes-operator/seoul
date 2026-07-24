@@ -9,10 +9,14 @@ from fastapi.staticfiles import StaticFiles
 from . import scheduler
 from .api import routes_auth, routes_findings, routes_loadtest, routes_meta, routes_runs, routes_schedule
 from .config import settings
+from .db import get_db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Open the DB now so default users (admin/password) are seeded at startup;
+    # get_db() does the seeding on first open (idempotent). See db.py / auth.py.
+    get_db()
     scheduler.start()
     yield
     scheduler.shutdown()

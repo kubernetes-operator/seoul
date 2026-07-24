@@ -11,11 +11,82 @@ const DOMAIN_LABELS = {
 async function api(path, opts) {
   const resp = await fetch(path, { credentials: "same-origin", ...opts });
   if (!resp.ok) {
+    // Session expired or missing → drop back to the login gate.
+    if (resp.status === 401) showLogin("세션이 만료되었습니다. 다시 로그인하세요.");
     let detail = "";
     try { detail = (await resp.json()).detail || ""; } catch (e) { /* body wasn't JSON, ignore */ }
     throw new Error(`${path} -> ${resp.status}${detail ? `: ${detail}` : ""}`);
   }
   return resp.json();
+}
+
+// ---------- Auth / session gate ----------
+let currentUser = null;
+
+function showLogin(errorText) {
+  document.getElementById("app").hidden = true;
+  document.getElementById("tabs").hidden = true;
+  document.getElementById("user-area").hidden = true;
+  document.getElementById("login-overlay").hidden = false;
+  document.getElementById("login-error").textContent = errorText || "";
+  document.getElementById("login-username").focus();
+}
+
+function showApp(username) {
+  currentUser = username;
+  document.getElementById("login-overlay").hidden = true;
+  document.getElementById("tabs").hidden = false;
+  document.getElementById("user-area").hidden = false;
+  document.getElementById("app").hidden = false;
+  document.getElementById("current-user").textContent = `${username} 님`;
+  initTabs();
+  renderOverview();
+}
+
+async function logout() {
+  try { await fetch("api/logout", { method: "POST", credentials: "same-origin" }); } catch (e) { /* ignore */ }
+  location.reload();  // fresh state → bootstrap() will show the login gate
+}
+
+async function bootstrap() {
+  document.getElementById("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("login-username").value.trim();
+    const password = document.getElementById("login-password").value;
+    const err = document.getElementById("login-error");
+    err.textContent = "로그인 중...";
+    try {
+      const resp = await fetch("api/login", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      if (!resp.ok) {
+        let detail = "사용자명 또는 비밀번호가 올바르지 않습니다";
+        try { detail = (await resp.json()).detail || detail; } catch (e2) { /* ignore */ }
+        err.textContent = detail;
+        return;
+      }
+      const { username: who } = await resp.json();
+      document.getElementById("login-password").value = "";
+      err.textContent = "";
+      showApp(who);
+    } catch (ex) {
+      err.textContent = `로그인 실패: ${ex.message}`;
+    }
+  });
+  document.getElementById("logout-btn").addEventListener("click", logout);
+
+  // Resume an existing session if the cookie is still valid.
+  try {
+    const resp = await fetch("api/session", { credentials: "same-origin" });
+    if (resp.ok) {
+      const { username } = await resp.json();
+      showApp(username);
+      return;
+    }
+  } catch (e) { /* fall through to the login gate */ }
+  showLogin();
 }
 
 function severityPill(sev) {
@@ -416,11 +487,40 @@ async function renderSettings() {
     }
   };
 
+  document.getElementById("pw-current-user").textContent = currentUser || "";
+  await refreshUserList();
+
+  document.getElementById("adduser-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById("adduser-status");
+    const username = document.getElementById("adduser-username").value.trim();
+    const password = document.getElementById("adduser-password").value;
+    if (password.length < 8) {
+      statusEl.textContent = "비밀번호는 8자 이상이어야 합니다.";
+      return;
+    }
+    statusEl.textContent = "추가 중...";
+    try {
+      await api("api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      statusEl.textContent = `사용자 '${username}' 추가됨`;
+      document.getElementById("adduser-username").value = "";
+      document.getElementById("adduser-password").value = "";
+      await refreshUserList();
+    } catch (err) {
+      statusEl.textContent = err.message.includes("409")
+        ? "이미 존재하는 사용자명입니다."
+        : `실패: ${err.message}`;
+    }
+  };
+
   document.getElementById("password-form").onsubmit = async (e) => {
     e.preventDefault();
     const statusEl = document.getElementById("password-status");
     const current_password = document.getElementById("current-password").value;
-    const new_username = document.getElementById("new-username").value.trim() || null;
     const new_password = document.getElementById("new-password").value;
     const confirm = document.getElementById("new-password-confirm").value;
 
@@ -438,16 +538,23 @@ async function renderSettings() {
       await api("api/auth/password", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current_password, new_username, new_password }),
+        body: JSON.stringify({ current_password, new_password }),
       });
-      statusEl.textContent = "변경됨 — 새 로그인 정보로 다시 로그인합니다...";
-      setTimeout(() => location.reload(), 1500);
+      statusEl.textContent = "변경됨 (현재 로그인은 그대로 유지됩니다).";
+      e.target.reset();
     } catch (err) {
       statusEl.textContent = err.message.includes("401")
         ? "현재 비밀번호가 올바르지 않습니다."
         : `실패: ${err.message}`;
     }
   };
+}
+
+async function refreshUserList() {
+  try {
+    const { users } = await api("api/users");
+    document.getElementById("user-list").textContent = users.join(", ");
+  } catch (e) { /* 401 handled by api(); ignore here */ }
 }
 
 // ---------- Load test ----------
@@ -569,5 +676,4 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-initTabs();
-renderOverview();
+bootstrap();

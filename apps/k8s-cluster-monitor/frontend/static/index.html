@@ -12,12 +12,12 @@
      2026-07-19 (fresh index.html + stale cached app.js without the new
      tab's JS). Bump ?v=X.Y.Z here every time frontend/static changes,
      alongside the image tag. -->
-<link rel="stylesheet" href="css/style.css?v=0.2.6">
+<link rel="stylesheet" href="css/style.css?v=0.3.0">
 </head>
 <body>
 <header class="topbar">
   <h1><button type="button" id="home-link" class="home-link">k8s-cluster-tester</button></h1>
-  <nav id="tabs">
+  <nav id="tabs" hidden>
     <button data-tab="overview" class="tab active">개요</button>
     <button data-tab="health" class="tab">헬스</button>
     <button data-tab="network" class="tab">네트워크</button>
@@ -29,9 +29,33 @@
     <button data-tab="chaos" class="tab">제안된 카오스 테스트</button>
     <button data-tab="settings" class="tab">설정</button>
   </nav>
+  <div id="user-area" class="user-area" hidden>
+    <span id="current-user" class="muted"></span>
+    <button type="button" id="logout-btn" class="btn-secondary">로그아웃</button>
+  </div>
 </header>
 
-<main id="app">
+<!-- Login gate. The SPA stays hidden until GET /api/session confirms a valid
+     session cookie; otherwise this overlay is shown. Static assets are served
+     without auth (only /api/* is protected), which is what makes a form login
+     possible instead of the browser's native Basic Auth prompt. -->
+<div id="login-overlay" class="modal-overlay" hidden>
+  <form id="login-form" class="modal login-box">
+    <h3 class="modal-title login-title">k8s-cluster-tester 로그인</h3>
+    <label>사용자명
+      <input type="text" id="login-username" autocomplete="username" required>
+    </label>
+    <label>비밀번호
+      <input type="password" id="login-password" autocomplete="current-password" required>
+    </label>
+    <div class="modal-actions">
+      <button type="submit" class="btn-primary">로그인</button>
+    </div>
+    <p id="login-error" class="muted"></p>
+  </form>
+</div>
+
+<main id="app" hidden>
   <section id="view-overview" class="view active">
     <div class="toolbar">
       <button id="run-all-btn" class="btn-primary">전체 도메인 지금 실행</button>
@@ -135,14 +159,24 @@
       <span id="settings-status" class="muted"></span>
     </form>
 
-    <h2>비밀번호 변경</h2>
-    <p class="muted">변경 후 이 브라우저에 저장된 로그인 정보가 무효화되므로, 저장되면 페이지가 자동으로 새로고침되며 새 비밀번호로 다시 로그인해야 합니다.</p>
+    <h2>사용자 관리</h2>
+    <p class="muted">현재 사용자: <span id="user-list" class="muted"></span></p>
+    <form id="adduser-form">
+      <label>새 사용자명
+        <input type="text" id="adduser-username" autocomplete="off" required>
+      </label>
+      <label>비밀번호 (8자 이상)
+        <input type="password" id="adduser-password" autocomplete="new-password" minlength="8" required>
+      </label>
+      <button type="submit" class="btn-primary">사용자 추가</button>
+      <span id="adduser-status" class="muted"></span>
+    </form>
+
+    <h2>내 비밀번호 변경</h2>
+    <p class="muted">로그인한 계정(<span id="pw-current-user" class="muted"></span>)의 비밀번호를 변경합니다.</p>
     <form id="password-form">
       <label>현재 비밀번호
         <input type="password" id="current-password" autocomplete="current-password" required>
-      </label>
-      <label>새 사용자명 (비워두면 유지)
-        <input type="text" id="new-username" autocomplete="username">
       </label>
       <label>새 비밀번호 (8자 이상)
         <input type="password" id="new-password" autocomplete="new-password" minlength="8" required>
@@ -187,7 +221,7 @@
   </div>
 </div>
 
-<script src="js/charts.js?v=0.2.6"></script>
-<script src="js/app.js?v=0.2.6"></script>
+<script src="js/charts.js?v=0.3.0"></script>
+<script src="js/app.js?v=0.3.0"></script>
 </body>
 </html>

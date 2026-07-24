@@ -16,4 +16,9 @@ def get_db() -> sqlite3.Connection:
     global _connection
     if _connection is None:
         _connection = get_connection(settings.db_path)
+        # Seed default users (admin/password) on first open, so login works
+        # even outside the app lifespan (e.g. TestClient without a context
+        # manager). Idempotent. Imported lazily to avoid an auth<->db cycle.
+        from .auth import ensure_seed
+        ensure_seed(_connection)
     return _connection

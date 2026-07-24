@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from ..auth import require_basic_auth
+from ..auth import require_session
 from ..db import get_db
 
-router = APIRouter(dependencies=[Depends(require_basic_auth)])
+router = APIRouter(dependencies=[Depends(require_session)])
 
 
 @router.get("/findings")

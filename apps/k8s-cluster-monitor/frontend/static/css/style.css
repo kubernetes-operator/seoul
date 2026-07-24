@@ -56,6 +56,12 @@ body {
 
 #tabs { display: flex; gap: 4px; flex-wrap: wrap; }
 
+.user-area { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.login-box { max-width: 360px; }
+.login-title { color: var(--info); }
+.login-box label { display: block; margin-bottom: 12px; font-size: 13px; }
+.login-box input { width: 100%; margin-top: 4px; }
+
 .tab {
   background: none;
   border: 1px solid transparent;

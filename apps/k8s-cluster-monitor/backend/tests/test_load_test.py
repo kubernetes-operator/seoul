@@ -2,14 +2,10 @@ import asyncio
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app import load_test
 from app.checks.base import Severity
 from app.config import settings
-from app.main import app
-
-api_client = TestClient(app)
 
 
 class FakeAsyncResponse:
@@ -132,46 +128,46 @@ def test_summary_finding_is_info_when_healthy():
 
 # ---------- API-level (routes_loadtest.py), through the real FastAPI app ----------
 
-def test_targets_endpoint_requires_auth():
-    assert api_client.get("/api/loadtest/targets").status_code == 401
+def test_targets_endpoint_requires_auth(client):
+    assert client.get("/api/loadtest/targets").status_code == 401
 
 
-def test_targets_endpoint_lists_allowlist():
-    resp = api_client.get("/api/loadtest/targets", auth=("testuser", "testpass"))
+def test_targets_endpoint_lists_allowlist(auth_client):
+    resp = auth_client.get("/api/loadtest/targets")
     assert resp.status_code == 200
     body = resp.json()
     assert "demo-app" in body["allowed_targets"]
 
 
-def test_post_loadtest_disabled_by_default_returns_503():
-    resp = api_client.post(
-        "/api/loadtest", auth=("testuser", "testpass"),
+def test_post_loadtest_disabled_by_default_returns_503(auth_client):
+    resp = auth_client.post(
+        "/api/loadtest",
         json={"namespace": "demo-app", "service": "web", "port": 80, "concurrency": 2, "duration_seconds": 0.2},
     )
     assert resp.status_code == 503
 
 
-def test_post_loadtest_end_to_end_when_enabled(monkeypatch):
+def test_post_loadtest_end_to_end_when_enabled(auth_client, monkeypatch):
     monkeypatch.setattr(settings, "loadtest_enabled", True)
     with patch("app.load_test.httpx.AsyncClient", FakeAsyncClient):
-        resp = api_client.post(
-            "/api/loadtest", auth=("testuser", "testpass"),
+        resp = auth_client.post(
+            "/api/loadtest",
             json={"namespace": "demo-app", "service": "web", "port": 80, "concurrency": 2, "duration_seconds": 0.2},
         )
     assert resp.status_code == 200
     body = resp.json()
     assert body["total_requests"] > 0
-    assert body["triggered_by"] == "testuser"
+    assert body["triggered_by"] == "admin"  # the logged-in session user
     assert "run_id" in body and "load_test_id" in body
 
-    history = api_client.get("/api/loadtest/history", auth=("testuser", "testpass")).json()
+    history = auth_client.get("/api/loadtest/history").json()
     assert any(row["id"] == body["load_test_id"] for row in history)
 
 
-def test_post_loadtest_rejects_disallowed_namespace_via_api(monkeypatch):
+def test_post_loadtest_rejects_disallowed_namespace_via_api(auth_client, monkeypatch):
     monkeypatch.setattr(settings, "loadtest_enabled", True)
-    resp = api_client.post(
-        "/api/loadtest", auth=("testuser", "testpass"),
+    resp = auth_client.post(
+        "/api/loadtest",
         json={"namespace": "kube-system", "service": "x", "port": 80, "concurrency": 1, "duration_seconds": 0.2},
     )
     assert resp.status_code == 400

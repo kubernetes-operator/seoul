@@ -4,12 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from .. import load_test
-from ..auth import require_basic_auth
+from ..auth import require_session
 from ..config import settings
 from ..db import get_db
 from ..models import list_load_tests, save_load_test, save_run
 
-router = APIRouter(dependencies=[Depends(require_basic_auth)])
+router = APIRouter(dependencies=[Depends(require_session)])
 
 
 class LoadTestRequest(BaseModel):
@@ -38,7 +38,7 @@ def get_history(limit: int = 50):
 
 
 @router.post("/loadtest")
-async def trigger_load_test(body: LoadTestRequest, current_user: str = Depends(require_basic_auth)):
+async def trigger_load_test(body: LoadTestRequest, current_user: str = Depends(require_session)):
     params = load_test.LoadTestParams(
         namespace=body.namespace, service=body.service, port=body.port,
         path=body.path, concurrency=body.concurrency, duration_seconds=body.duration_seconds,

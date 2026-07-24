@@ -52,10 +52,9 @@ CREATE TABLE IF NOT EXISTS schedule (
     enabled_domains TEXT NOT NULL DEFAULT 'health,network,security,storage_backup,observability'
 );
 
--- Basic Auth credential, PBKDF2-HMAC hash + random salt (never plaintext).
--- Seeded once from the K8s Secret's env vars on first boot (see auth.py);
--- authoritative after that, so it can be changed from the dashboard without
--- this app ever needing `secrets` RBAC to write back to the Secret.
+-- Legacy single Basic Auth credential (pre-v0.3.0). Kept only so ensure_seed()
+-- in auth.py can migrate an existing row into the multi-user `users` table on
+-- upgrade; no longer written to. See auth.py.
 CREATE TABLE IF NOT EXISTS auth_credential (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     username TEXT NOT NULL,
@@ -63,6 +62,30 @@ CREATE TABLE IF NOT EXISTS auth_credential (
     salt TEXT NOT NULL,
     updated_at REAL NOT NULL
 );
+
+-- Multi-user login credentials (v0.3.0+). PBKDF2-HMAC hash + per-user random
+-- salt, never plaintext. Seeded with the default admin/password on first boot
+-- against an empty table (see auth.ensure_seed) — stored in SQLite, not K8s
+-- Secrets, so add-user / change-password stay self-service without this app
+-- ever needing `secrets` RBAC.
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+
+-- Server-side login sessions: opaque token in an httponly cookie. No signing
+-- key to manage, individually revocable (logout), and survive pod restarts
+-- (SQLite on the PVC). Expired rows are pruned lazily on lookup.
+CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    username TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 
 -- Active load-test results. Doesn't fit the Finding/CheckResult shape (a
 -- distribution/rate result, not a discrete issue) — see load_test.py.

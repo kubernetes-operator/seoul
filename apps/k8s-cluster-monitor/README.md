@@ -16,7 +16,7 @@ in-cluster tool deliberately does not automate.
 ## Status
 
 Deployed and running in the `k8s-cluster-monitor` namespace, image
-`registry.local.cloud:5000/k8s-cluster-monitor:v0.2.6`. Schedule: every 6
+`registry.local.cloud:5000/k8s-cluster-monitor:v0.3.0`. Schedule: every 6
 hours (`0 */6 * * *`), all 6 domains. See `deploy/README.md` for the full
 deploy history, including a Cilium-specific NetworkPolicy gotcha hit and
 fixed during rollout (standard `NetworkPolicy` `ipBlock` rules silently
@@ -28,8 +28,11 @@ that reason, not a portability oversight).
 
 **https://test2.studiobasa.com/k8stest/** — exposed via the cluster's
 shared Gateway, same pattern as Headlamp/Grafana/etc (`deploy/k8s/10-httproute.yaml`).
-Log in with the Basic Auth username/password (change it any time from the
-**Settings tab** — see "Changing the password" below). Note the trailing
+A **form login page** gates the SPA (v0.3.0+); the default credential is
+**`admin` / `password`** — change it immediately from the **Settings tab**
+(this app's own security audit flags weak default credentials). Multiple
+users are supported: add more from Settings → "사용자 관리". See "Login &
+users" below. Note the trailing
 slash — `/k8stest` without it 302-redirects to the slash form (needed
 because, unlike Grafana/Headlamp, this app isn't natively subpath-aware; the
 frontend uses relative asset/API paths instead, which only resolve
@@ -45,13 +48,28 @@ kubectl -n k8s-cluster-monitor port-forward svc/k8s-cluster-monitor 8080:80
 Then open `http://localhost:8080` (no trailing-slash subtlety at the root
 path). `Ctrl+C` to stop it when done.
 
-### Changing the password
+### Login & users
 
-Settings tab → "비밀번호 변경" — requires the current password, so this is
-self-service and needs no cluster access. The credential lives in SQLite
-(hashed), not read from the K8s Secret on every request; the Secret is only
-used to seed the very first boot. See `backend/app/auth.py`'s docstring and
-`deploy/README.md` for the reasoning and the lockout-recovery procedure.
+Form-based login with server-side sessions (v0.3.0+): a `POST /api/login`
+sets an httponly session cookie (`kct_session`, 7-day TTL, stored in the
+`sessions` table); a "로그아웃" button in the header clears it. Everything
+under `/api/*` requires a valid session; static assets (the login page,
+CSS/JS) are served without auth.
+
+- **Default credential: `admin` / `password`** — seeded on the first boot
+  against a users-less database (`app/auth.py` `ensure_seed`). It is
+  deliberately weak per request; **change it right after deploying**.
+- **Multiple users**: Settings tab → "사용자 관리" → add a username + password
+  (≥8 chars). Any logged-in user can add users (single trust level, no roles).
+- **Change your own password**: Settings tab → "내 비밀번호 변경" (requires the
+  current password). Your existing session stays valid.
+
+Credentials live in SQLite (`users` table, PBKDF2-HMAC hash + per-user salt),
+never in K8s Secrets — that's what keeps login/add-user/change-password
+self-service without this app ever needing `secrets` RBAC. The K8s Secret
+(`k8s-cluster-monitor-auth`) is now vestigial (no longer read for seeding).
+See `backend/app/auth.py`'s docstring and `deploy/README.md` for the lockout
+recovery procedure.
 
 ### Load testing
 

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..auth import require_basic_auth
+from ..auth import require_session
 from ..checks.registry import DOMAINS, run_all, run_domain
 from ..db import get_db
 
-router = APIRouter(dependencies=[Depends(require_basic_auth)])
+router = APIRouter(dependencies=[Depends(require_session)])
 
 
 @router.get("/runs")

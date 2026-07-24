@@ -99,35 +99,32 @@ kubectl -n argocd patch application k8s-cluster-monitor --type merge \
   invariant this app has held since it was first deployed. See the module
   docstring in `backend/app/load_test.py` for the full reasoning.
 
-**Auth credential model changed in v0.1.2:** Basic Auth is no longer read
-from the K8s Secret on every request — it's stored in SQLite (PBKDF2-HMAC
-hash + salt), seeded from the Secret's env vars only once, the first time
-the pod ever starts against an empty database. Change it from the
-dashboard's Settings page (requires the current password); the Secret is
-now only a bootstrap/recovery mechanism, not the live value. This was a
-deliberate choice to avoid giving the app any `secrets` RBAC (see
-`backend/app/auth.py` docstring for the full reasoning).
+**Auth model changed in v0.3.0 — form login + multiple users:** the browser
+Basic Auth prompt is gone; a form login page sets an httponly session cookie
+(`kct_session`, 7-day TTL). Credentials live in SQLite (`users` table,
+PBKDF2-HMAC hash + per-user salt), **seeded with the default `admin` /
+`password`** on the first boot against a users-less database — change it
+immediately from the Settings tab. Multiple users can be added from Settings
+→ "사용자 관리". The K8s Secret (`k8s-cluster-monitor-auth`) is no longer read
+for seeding (vestigial; env vars ignored). This keeps login/add-user/
+change-password self-service without the app ever needing `secrets` RBAC.
 
-**If locked out** (forgot the changed password, no Secret access needed):
+Earlier (v0.1.2–v0.2.x) it was a single Basic-Auth credential in the
+`auth_credential` table; ensure_seed migrates that row into `users` on
+upgrade, so any previously-set non-`admin` account still works.
+
+**If locked out** (forgot every password, need to reset to the default):
+delete the users so the next boot re-seeds `admin` / `password`.
 
 ```bash
 kubectl -n k8s-cluster-monitor exec deploy/k8s-cluster-monitor -- \
-  python3 -c "import sqlite3; sqlite3.connect('/data/monitor.db').execute('DELETE FROM auth_credential').close()"
+  python3 -c "import sqlite3; c=sqlite3.connect('/data/monitor.db'); [c.execute(f'DELETE FROM {t}') for t in ('users','sessions','auth_credential')]; c.commit()"
 kubectl -n k8s-cluster-monitor rollout restart deployment/k8s-cluster-monitor
 ```
 
-This re-seeds from whatever the `k8s-cluster-monitor-auth` Secret currently
-holds. To change what it re-seeds to:
-
-```bash
-kubectl create secret generic k8s-cluster-monitor-auth -n k8s-cluster-monitor \
-  --from-literal=BASIC_AUTH_USERNAME=admin \
-  --from-literal=BASIC_AUTH_PASSWORD="$(openssl rand -base64 24)" \
-  --dry-run=client -o yaml | kubectl apply -f -
-```
-
-(this alone has no effect on a running deployment until the `auth_credential`
-row is cleared as above — the database is authoritative once seeded).
+After it comes back, log in with `admin` / `password` and change it.
+(Clearing `auth_credential` too prevents a stale legacy row from being
+re-migrated instead of the fresh default.)
 
 ## What this is
 
@@ -244,12 +241,12 @@ plain `NetworkPolicy`, re-tested the same careful way.
 `10-httproute.yaml` **is applied** — the dashboard is reachable at
 `https://test2.studiobasa.com/k8stest/` (path-prefix on the cluster's
 shared Gateway, same pattern as headlamp-route/monitoring-route/etc). This
-exposes a read-only, Basic-Auth-protected tool over HTTPS — a different risk
+exposes a read-only, login-protected tool over HTTPS — a different risk
 profile than the Headlamp finding (cluster-admin + public exposure) this
 tool's own security check flags elsewhere. Since it's reachable beyond
-`kubectl port-forward` now, consider changing the Basic Auth password from
-the dashboard's Settings tab (see "Auth credential model changed in v0.1.2"
-above) if it hasn't been changed from its initial value yet.
+`kubectl port-forward`, **change the default `admin` / `password` login from
+the dashboard's Settings tab immediately** (see "Auth model changed in
+v0.3.0" above) if it hasn't been changed yet.
 
 ## GATE 3 — enable scheduling (light confirmation)
 
@@ -265,7 +262,7 @@ restarts without needing the ConfigMap's default touched.
 ```bash
 kubectl -n k8s-cluster-monitor get pods -w
 kubectl -n k8s-cluster-monitor port-forward svc/k8s-cluster-monitor 8080:80
-# open http://localhost:8080 — browser will prompt for the Basic Auth credentials
+# open http://localhost:8080 — the login page prompts for credentials (default admin/password)
 ```
 
 Trigger one "run all" from the Overview tab and confirm findings populate.
