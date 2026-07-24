@@ -16,7 +16,7 @@ in-cluster tool deliberately does not automate.
 ## Status
 
 Deployed and running in the `k8s-cluster-monitor` namespace, image
-`registry.local.cloud:5000/k8s-cluster-monitor:v0.3.4`. Schedule: every 6
+`registry.local.cloud:5000/k8s-cluster-monitor:v0.3.5`. Schedule: every 6
 hours (`0 */6 * * *`), all 6 domains. See `deploy/README.md` for the full
 deploy history, including a Cilium-specific NetworkPolicy gotcha hit and
 fixed during rollout (standard `NetworkPolicy` `ipBlock` rules silently

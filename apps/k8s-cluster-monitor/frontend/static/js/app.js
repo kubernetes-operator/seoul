@@ -176,13 +176,7 @@ let _refreshTimer = null;
 function refreshCurrentView() {
   if (currentTab === "overview") renderOverview();
   else if (DOMAINS.includes(currentTab)) renderDomainView(currentTab);
-  else return; // don't auto-refresh form/static tabs
-  markRefreshed();
-}
-
-function markRefreshed() {
-  const el = document.getElementById("last-refresh");
-  if (el) el.textContent = `갱신 ${new Date().toLocaleTimeString("ko-KR")}`;
+  // form/static tabs (load_test/chaos/settings) are not auto-refreshed
 }
 
 function applyRefreshInterval(value) {
@@ -198,7 +192,6 @@ function initAutoRefresh() {
   const btn = document.getElementById("refresh-now-btn");
   if (btn) btn.onclick = () => {
     renderTab(currentTab);
-    markRefreshed();
     const sel = document.getElementById("refresh-interval");
     if (sel) applyRefreshInterval(sel.value);
   };
@@ -211,7 +204,6 @@ function initAutoRefresh() {
   sel.value = saved;
   sel.onchange = () => applyRefreshInterval(sel.value);
   applyRefreshInterval(saved);
-  markRefreshed();
 }
 
 // ---------- Overview ----------
