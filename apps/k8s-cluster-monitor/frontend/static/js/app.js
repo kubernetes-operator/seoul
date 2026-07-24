@@ -16,10 +16,15 @@ const DOMAIN_COLORS = {
 };
 
 async function api(path, opts) {
-  const resp = await fetch(path, { credentials: "same-origin", ...opts });
+  // cache:"no-store" so a browser/proxy never serves a stale API response
+  // (pairs with the backend's Cache-Control: no-store on /api).
+  const resp = await fetch(path, { credentials: "same-origin", cache: "no-store", ...opts });
   if (!resp.ok) {
-    // Session expired or missing → drop back to the login gate.
-    if (resp.status === 401) showLogin("세션이 만료되었습니다. 다시 로그인하세요.");
+    // A single 401 does NOT immediately bounce to the login screen — a
+    // transient blip (a redeploy mid-request, a proxy hiccup) shouldn't log
+    // the user out. Re-verify the session; only show the gate if it's really
+    // gone. See verifySessionElseLogin().
+    if (resp.status === 401) verifySessionElseLogin();
     let detail = "";
     try { detail = (await resp.json()).detail || ""; } catch (e) { /* body wasn't JSON, ignore */ }
     throw new Error(`${path} -> ${resp.status}${detail ? `: ${detail}` : ""}`);
@@ -29,6 +34,30 @@ async function api(path, opts) {
 
 // ---------- Auth / session gate ----------
 let currentUser = null;
+let _sessionCheck = null;
+
+// Called after an API 401: confirm whether the session is actually gone before
+// tearing down the UI. Deduplicates concurrent checks (many API calls can 401
+// at once). Only a confirmed-unauthenticated /api/session shows the login gate;
+// a network error is treated as transient (stay put).
+function verifySessionElseLogin() {
+  if (_sessionCheck) return _sessionCheck;
+  _sessionCheck = (async () => {
+    try {
+      const r = await fetch("api/session", { credentials: "same-origin", cache: "no-store" });
+      if (r.status === 401) {
+        showLogin("세션이 만료되었습니다. 다시 로그인하세요.");
+        return false;
+      }
+      return true;  // session still valid → the earlier 401 was transient
+    } catch (e) {
+      return true;  // network blip → don't log the user out
+    } finally {
+      _sessionCheck = null;
+    }
+  })();
+  return _sessionCheck;
+}
 
 function showLogin(errorText) {
   document.getElementById("app").hidden = true;

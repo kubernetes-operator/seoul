@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
 from . import scheduler
@@ -23,6 +23,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="k8s-cluster-monitor", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def no_store_api_responses(request: Request, call_next):
+    """Authenticated API responses must never be cached by the browser or any
+    intermediary (Cloudflare fronts this app). Without an explicit directive a
+    browser may heuristically cache a GET /api response and later serve a stale
+    body — or, worse for auth UX, a stale 401 — so force no-store on /api. The
+    login-session roundtrip itself was verified healthy through the CDN; this
+    is defense-in-depth against caching-induced spurious re-logins."""
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
 
 app.include_router(routes_meta.router)
 app.include_router(routes_runs.router, prefix="/api")

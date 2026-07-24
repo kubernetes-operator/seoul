@@ -25,3 +25,10 @@ def test_login_with_wrong_password_rejected(client):
 def test_unknown_domain_trigger_returns_404(auth_client):
     resp = auth_client.post("/api/runs/not-a-real-domain")
     assert resp.status_code == 404
+
+
+def test_api_responses_are_no_store(auth_client, client):
+    # Both authed and unauthed /api responses must be uncacheable so no proxy
+    # or browser serves a stale body/401 (guards against spurious re-logins).
+    assert auth_client.get("/api/runs").headers.get("cache-control") == "no-store"
+    assert client.get("/api/runs").headers.get("cache-control") == "no-store"  # 401 too
