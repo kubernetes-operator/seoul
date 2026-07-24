@@ -148,17 +148,20 @@ function initTabs() {
 
 let currentTab = "overview";
 
-function switchTab(tab) {
-  currentTab = tab;
-  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
-  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
-  document.getElementById(`view-${tab}`).classList.add("active");
-
+function renderTab(tab) {
   if (tab === "overview") renderOverview();
   else if (DOMAINS.includes(tab)) renderDomainView(tab);
   else if (tab === "load_test") renderLoadTestTab();
   else if (tab === "chaos") renderChaosTab();
   else if (tab === "settings") renderSettings();
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+  document.getElementById(`view-${tab}`).classList.add("active");
+  renderTab(tab);
 }
 
 // ---------- Auto-refresh ----------
@@ -189,6 +192,17 @@ function applyRefreshInterval(value) {
 }
 
 function initAutoRefresh() {
+  // Manual refresh button: re-render the current tab now (full render, so it
+  // works on any tab), and reset the auto-refresh timer so the countdown
+  // starts fresh from this manual refresh.
+  const btn = document.getElementById("refresh-now-btn");
+  if (btn) btn.onclick = () => {
+    renderTab(currentTab);
+    markRefreshed();
+    const sel = document.getElementById("refresh-interval");
+    if (sel) applyRefreshInterval(sel.value);
+  };
+
   const sel = document.getElementById("refresh-interval");
   if (!sel) return;
   let saved = "60"; // default: 1분
