@@ -1,0 +1,49 @@
+# ArgoCD Application — GitOps deployment for k8s-cluster-monitor.
+#
+# Bootstrap once with:
+#   kubectl apply -f apps/k8s-cluster-monitor/deploy/argocd/application.yaml
+# After that, deploys happen by pushing to `main`: ArgoCD watches this repo
+# and auto-syncs deploy/k8s/ into the k8s-cluster-monitor namespace. Do NOT
+# `kubectl apply` / `kubectl set image` by hand anymore — selfHeal will revert
+# out-of-band changes back to git. See deploy/README.md ("ArgoCD / GitOps").
+#
+# Note: this only reconciles Kubernetes manifests. Building and pushing the
+# container image is still a manual step (there is no image CI); the GitOps
+# trigger is the image-tag bump committed in 08-deployment.yaml.
+#
+# The real Basic Auth Secret is intentionally NOT in git (only
+# 06-secret.example.yaml.template, which ArgoCD ignores — it isn't a .yaml).
+# It was seeded once out-of-band and is not tracked here, so prune/selfHeal
+# never touch it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k8s-cluster-monitor
+  namespace: argocd
+  # Keep the app from being pruned before its children during a cascade delete.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kubernetes-operator/seoul.git
+    path: apps/k8s-cluster-monitor/deploy/k8s
+    targetRevision: main
+    directory:
+      recurse: false
+  destination:
+    namespace: k8s-cluster-monitor
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 3
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true

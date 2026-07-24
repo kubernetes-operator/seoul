@@ -14,6 +14,46 @@ below). The steps below are kept as the reference procedure for
 redeploying, recovering, or standing this up again elsewhere — not a to-do
 list.
 
+## ArgoCD / GitOps (current deploy method — read this first)
+
+As of 2026-07-24 this app is managed by **ArgoCD** (namespace `argocd`,
+v3.4.5), same convention as `os-monitor-prod`. The Application manifest lives
+at `deploy/argocd/application.yaml`; it watches this repo's `main` branch and
+auto-syncs `deploy/k8s/` into the `k8s-cluster-monitor` namespace with
+`prune: true` + `selfHeal: true`.
+
+**What this changes:**
+
+- **Deploys now happen by pushing to `main`.** Edit manifests, `git push`,
+  and ArgoCD applies the diff automatically. Do **not** `kubectl apply` /
+  `kubectl set image` / `kubectl patch` by hand anymore — `selfHeal` reverts
+  any out-of-band change back to git (that's the point). The GATE 1–3 steps
+  below are now the **bootstrap/recovery reference**, not the routine path.
+- **Images are still built and pushed manually** (there is no image CI).
+  GitOps only reconciles manifests, so the release trigger is the image-tag
+  bump you commit in `08-deployment.yaml`. Full flow: build → push → bump the
+  tag in `08-deployment.yaml` (+ the `frontend` `?v=` params) → commit → push
+  → ArgoCD rolls it out.
+- **The real Basic Auth Secret is not tracked** (only
+  `06-secret.example.yaml.template`, which ArgoCD ignores — it isn't `.yaml`).
+  It was seeded out-of-band and ArgoCD never created it, so `prune`/`selfHeal`
+  leave it alone.
+
+Bootstrap the Application once (idempotent):
+
+```bash
+kubectl apply -f apps/k8s-cluster-monitor/deploy/argocd/application.yaml
+kubectl -n argocd get application k8s-cluster-monitor
+```
+
+To pause GitOps temporarily (e.g. for a manual hotfix), disable auto-sync,
+then re-enable by re-applying the manifest:
+
+```bash
+kubectl -n argocd patch application k8s-cluster-monitor --type merge \
+  -p '{"spec":{"syncPolicy":{"automated":null}}}'
+```
+
 ## Performance domain & load testing (v0.2.0)
 
 - `performance` is a normal read-only domain (like `health`/`network`/etc)
@@ -21,23 +61,23 @@ list.
   the rest. Queries Prometheus for CPU throttling, memory-near-limit,
   node saturation, and (opportunistically, only for namespaces that expose
   `http_request_duration_seconds`) app p95 latency / 5xx error rate.
-- The load-test feature ships **disabled by default**
-  (`MONITOR_LOADTEST_ENABLED=false` in the ConfigMap file) — enabling it is
-  a deliberate, separate step:
+- The load-test feature ships **disabled by default** in code, but is
+  **enabled on this deployment** — `MONITOR_LOADTEST_ENABLED: "true"` in
+  `05-configmap.yaml` (2026-07-19 operator request; verified with one real
+  run: `demo-app/web:80`, concurrency 2, 5s cap — hit the 5,000-total-requests
+  ceiling in ~2.7s, 0 errors, p95 1.2ms, `demo-app` pods unaffected).
+  Under ArgoCD this value in git is the desired state; it was previously
+  flipped by a live `kubectl patch` that predated the GitOps cutover and has
+  since been reconciled into `05-configmap.yaml`.
+  **To toggle it, change git — do not `kubectl patch` (selfHeal reverts it):**
   ```bash
-  kubectl -n k8s-cluster-monitor patch configmap k8s-cluster-monitor-config \
-    --type merge -p '{"data":{"MONITOR_LOADTEST_ENABLED":"true"}}'
+  # edit MONITOR_LOADTEST_ENABLED in deploy/k8s/05-configmap.yaml, then:
+  git commit -am "toggle load-test" && git push        # ArgoCD syncs the ConfigMap
   kubectl -n k8s-cluster-monitor rollout restart deployment/k8s-cluster-monitor
   ```
-  **Currently enabled on the live deployment** (2026-07-19, operator request)
-  — verified with one real run (`demo-app/web:80`, concurrency 2, 5s cap:
-  hit the 5,000-total-requests ceiling in ~2.7s, 0 errors, p95 1.2ms;
-  `demo-app` pods unaffected). To turn it back off:
-  ```bash
-  kubectl -n k8s-cluster-monitor patch configmap k8s-cluster-monitor-config \
-    --type merge -p '{"data":{"MONITOR_LOADTEST_ENABLED":"false"}}'
-  kubectl -n k8s-cluster-monitor rollout restart deployment/k8s-cluster-monitor
-  ```
+  (the rollout restart is still needed — the value is read into the process
+  environment at startup, so a ConfigMap change alone doesn't take effect on
+  the running pod.)
 - Targets are a hardcoded allow-list (`backend/app/load_test.py`'s
   `ALLOWED_TARGETS`) — `demo-app`, `gitea`, `model-factory`, `os-monitor`,
   each with specific service:port pairs confirmed live via

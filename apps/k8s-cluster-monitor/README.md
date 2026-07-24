@@ -108,10 +108,19 @@ this tool needs to actually run as a pod rather than a local script.
 
 ## Making changes after this initial deploy
 
-1. Edit code, re-run `pytest`.
+Deploys are now **GitOps via ArgoCD** — a push to `main` is the deploy. The
+old `kubectl apply` / `set image` path is gone: `selfHeal` reverts any manual
+change back to git. See `deploy/README.md` ("ArgoCD / GitOps") for the full
+rationale.
+
+1. Edit code, re-run `pytest`. Bump the frontend `?v=` params in
+   `frontend/static/index.html` if you touched `frontend/static/`.
 2. Bump the image tag (semantic version, never `:latest`) in
-   `backend/Dockerfile` usage and `deploy/k8s/08-deployment.yaml`.
+   `deploy/k8s/08-deployment.yaml`.
 3. `docker build -f backend/Dockerfile -t registry.local.cloud:5000/k8s-cluster-monitor:vX.Y.Z .`
-   from this directory, then `docker push`.
-4. `kubectl apply -f deploy/k8s/08-deployment.yaml` (after editing the image
-   tag in that file) or `kubectl -n k8s-cluster-monitor set image deployment/k8s-cluster-monitor k8s-cluster-monitor=registry.local.cloud:5000/k8s-cluster-monitor:vX.Y.Z`.
+   from this directory, then `docker push` (image build/push is still manual —
+   ArgoCD reconciles manifests, not images).
+4. `git commit` + `git push`. ArgoCD detects the new image tag in
+   `08-deployment.yaml` and rolls it out automatically. Watch it with
+   `kubectl -n argocd get application k8s-cluster-monitor` and
+   `kubectl -n k8s-cluster-monitor rollout status deployment/k8s-cluster-monitor`.
