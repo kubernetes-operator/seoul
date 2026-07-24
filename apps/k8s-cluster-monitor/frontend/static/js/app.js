@@ -131,7 +131,11 @@ async function renderTrend() {
     chartEl.innerHTML = '<p class="muted">아직 데이터 없음 — 실행 이력이 쌓이면 표시됩니다.</p>';
     return;
   }
-  lineChart(chartEl, series, labels);
+  lineChart(chartEl, series, labels, {
+    critical: "심각 (critical)",
+    warning: "경고 (warning)",
+    info: "정보 (info)",
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {

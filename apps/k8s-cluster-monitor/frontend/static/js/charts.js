@@ -14,8 +14,30 @@ function svgEl(tag, attrs) {
 }
 
 // series: { critical: [n,...], warning: [...], info: [...] }, xLabels: [str,...]
-function lineChart(container, series, xLabels) {
+// seriesLabels (optional): { critical: "심각(critical)", ... } — when given,
+// a legend row is rendered above the plot so each colored line is identifiable.
+function lineChart(container, series, xLabels, seriesLabels) {
   container.innerHTML = "";
+
+  // Legend: without it the three same-shape lines are indistinguishable —
+  // this is the "which line is which value?" fix. Rendered as plain HTML
+  // above the SVG (simpler and more accessible than SVG <text> swatches).
+  if (seriesLabels) {
+    const legend = document.createElement("div");
+    legend.className = "chart-legend";
+    for (const key of Object.keys(series)) {
+      const item = document.createElement("span");
+      item.className = "chart-legend-item";
+      const swatch = document.createElement("span");
+      swatch.className = "chart-legend-swatch";
+      swatch.style.background = SEVERITY_COLORS[key] || "#888";
+      item.appendChild(swatch);
+      item.appendChild(document.createTextNode(seriesLabels[key] || key));
+      legend.appendChild(item);
+    }
+    container.appendChild(legend);
+  }
+
   const width = container.clientWidth || 600;
   const height = 220;
   const padding = { top: 10, right: 10, bottom: 30, left: 30 };

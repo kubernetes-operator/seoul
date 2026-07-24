@@ -12,7 +12,7 @@
      2026-07-19 (fresh index.html + stale cached app.js without the new
      tab's JS). Bump ?v=X.Y.Z here every time frontend/static changes,
      alongside the image tag. -->
-<link rel="stylesheet" href="css/style.css?v=0.2.5">
+<link rel="stylesheet" href="css/style.css?v=0.2.6">
 </head>
 <body>
 <header class="topbar">
@@ -39,6 +39,13 @@
     </div>
     <div id="overview-cards" class="cards"></div>
     <h2>추세 (findings over time)</h2>
+    <p class="muted">
+      선택한 도메인(기본: 전체)의 점검 실행별 <strong>발견(finding) 건수</strong>를 시간순으로 보여줍니다.
+      각 선은 심각도입니다 — <span class="legend-inline" style="color:#dc2626">■</span> 심각(critical),
+      <span class="legend-inline" style="color:#d97706">■</span> 경고(warning),
+      <span class="legend-inline" style="color:#2563eb">■</span> 정보(info).
+      가로축 = 실행 날짜, 세로축 = 해당 심각도의 건수(낮을수록 좋음).
+    </p>
     <div class="toolbar">
       <label>도메인 <select id="trend-domain">
         <option value="">전체</option>
@@ -180,7 +187,7 @@
   </div>
 </div>
 
-<script src="js/charts.js?v=0.2.5"></script>
-<script src="js/app.js?v=0.2.5"></script>
+<script src="js/charts.js?v=0.2.6"></script>
+<script src="js/app.js?v=0.2.6"></script>
 </body>
 </html>
