@@ -13,15 +13,20 @@ function svgEl(tag, attrs) {
   return el;
 }
 
-// series: { critical: [n,...], warning: [...], info: [...] }, xLabels: [str,...]
-// seriesLabels (optional): { critical: "심각(critical)", ... } — when given,
-// a legend row is rendered above the plot so each colored line is identifiable.
-function lineChart(container, series, xLabels, seriesLabels) {
+// series: { <key>: [n,...], ... }, xLabels: [str,...]
+// seriesLabels (optional): { <key>: "display name", ... } — when given, a
+//   legend row is rendered above the plot so each colored line is identifiable.
+// colors (optional): { <key>: "#rrggbb", ... } — per-series line color. Falls
+//   back to SEVERITY_COLORS (critical/warning/info) then grey, so callers that
+//   key series by something other than severity (e.g. domain) pass their own.
+function lineChart(container, series, xLabels, seriesLabels, colors) {
   container.innerHTML = "";
 
-  // Legend: without it the three same-shape lines are indistinguishable —
-  // this is the "which line is which value?" fix. Rendered as plain HTML
-  // above the SVG (simpler and more accessible than SVG <text> swatches).
+  const colorFor = (key) => (colors && colors[key]) || SEVERITY_COLORS[key] || "#888";
+
+  // Legend: without it the same-shape lines are indistinguishable — this is
+  // the "which line is which value?" fix. Rendered as plain HTML above the SVG
+  // (simpler and more accessible than SVG <text> swatches).
   if (seriesLabels) {
     const legend = document.createElement("div");
     legend.className = "chart-legend";
@@ -30,7 +35,7 @@ function lineChart(container, series, xLabels, seriesLabels) {
       item.className = "chart-legend-item";
       const swatch = document.createElement("span");
       swatch.className = "chart-legend-swatch";
-      swatch.style.background = SEVERITY_COLORS[key] || "#888";
+      swatch.style.background = colorFor(key);
       item.appendChild(swatch);
       item.appendChild(document.createTextNode(seriesLabels[key] || key));
       legend.appendChild(item);
@@ -66,14 +71,13 @@ function lineChart(container, series, xLabels, seriesLabels) {
   const xOf = (i) => (n <= 1 ? padding.left : padding.left + (plotW * i) / (n - 1));
   const yOf = (v) => padding.top + plotH - (plotH * v) / maxY;
 
-  for (const [severity, values] of Object.entries(series)) {
+  for (const [key, values] of Object.entries(series)) {
     if (!values.length) continue;
+    const stroke = colorFor(key);
     const points = values.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ");
-    svg.appendChild(svgEl("polyline", {
-      points, fill: "none", stroke: SEVERITY_COLORS[severity] || "#888", "stroke-width": 2,
-    }));
+    svg.appendChild(svgEl("polyline", { points, fill: "none", stroke, "stroke-width": 2 }));
     values.forEach((v, i) => {
-      svg.appendChild(svgEl("circle", { cx: xOf(i), cy: yOf(v), r: 2.5, fill: SEVERITY_COLORS[severity] || "#888" }));
+      svg.appendChild(svgEl("circle", { cx: xOf(i), cy: yOf(v), r: 2.5, fill: stroke }));
     });
   }
 

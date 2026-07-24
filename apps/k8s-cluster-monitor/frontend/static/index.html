@@ -12,7 +12,7 @@
      2026-07-19 (fresh index.html + stale cached app.js without the new
      tab's JS). Bump ?v=X.Y.Z here every time frontend/static changes,
      alongside the image tag. -->
-<link rel="stylesheet" href="css/style.css?v=0.3.0">
+<link rel="stylesheet" href="css/style.css?v=0.3.1">
 </head>
 <body>
 <header class="topbar">
@@ -64,13 +64,18 @@
     <div id="overview-cards" class="cards"></div>
     <h2>추세 (findings over time)</h2>
     <p class="muted">
-      선택한 도메인(기본: 전체)의 점검 실행별 <strong>발견(finding) 건수</strong>를 시간순으로 보여줍니다.
-      각 선은 심각도입니다 — <span class="legend-inline" style="color:#dc2626">■</span> 심각(critical),
-      <span class="legend-inline" style="color:#d97706">■</span> 경고(warning),
-      <span class="legend-inline" style="color:#2563eb">■</span> 정보(info).
-      가로축 = 실행 날짜, 세로축 = 해당 심각도의 건수(낮을수록 좋음).
+      점검 실행에서 나온 <strong>발견(finding) 건수</strong>를 날짜별로 보여줍니다(하루 여러 번 실행 시 합산). 그래프 위 범례로 각 선을 확인하세요.
+      <br><strong>구분 = 심각도별</strong>: 선 = 심각도(<span class="legend-inline" style="color:#dc2626">■</span>심각 /
+      <span class="legend-inline" style="color:#d97706">■</span>경고 /
+      <span class="legend-inline" style="color:#2563eb">■</span>정보), 값 = 해당 심각도 건수. "도메인" 선택으로 특정 도메인만 볼 수 있습니다.
+      <br><strong>구분 = 도메인별</strong>: 선 = <strong>도메인 하나</strong>(색상별), 값 = 그 도메인의 전체 발견 건수. 이 모드에서는 모든 도메인을 함께 표시하며 "도메인" 선택은 무시됩니다.
+      <br>가로축 = 날짜, 세로축 = 건수(낮을수록 좋음).
     </p>
     <div class="toolbar">
+      <label>구분 <select id="trend-breakdown">
+        <option value="severity">심각도별</option>
+        <option value="domain">도메인별</option>
+      </select></label>
       <label>도메인 <select id="trend-domain">
         <option value="">전체</option>
         <option value="health">health</option>
@@ -221,7 +226,7 @@
   </div>
 </div>
 
-<script src="js/charts.js?v=0.3.0"></script>
-<script src="js/app.js?v=0.3.0"></script>
+<script src="js/charts.js?v=0.3.1"></script>
+<script src="js/app.js?v=0.3.1"></script>
 </body>
 </html>

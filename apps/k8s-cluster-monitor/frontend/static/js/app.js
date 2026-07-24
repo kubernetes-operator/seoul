@@ -6,6 +6,13 @@ const DOMAINS = ["health", "network", "security", "storage_backup", "observabili
 const DOMAIN_LABELS = {
   health: "헬스", network: "네트워크", security: "보안",
   storage_backup: "스토리지/백업", observability: "관측성", performance: "성능",
+  load_test: "부하 테스트",
+};
+// Distinct per-domain line colors for the "도메인별" trend breakdown.
+const DOMAIN_COLORS = {
+  health: "#16a34a", network: "#2563eb", security: "#dc2626",
+  storage_backup: "#9333ea", observability: "#d97706", performance: "#0891b2",
+  load_test: "#64748b",
 };
 
 async function api(path, opts) {
@@ -185,33 +192,66 @@ async function triggerRun(domain, btn) {
 }
 
 async function renderTrend() {
-  const domain = document.getElementById("trend-domain").value;
+  const domainSel = document.getElementById("trend-domain").value;
   const days = document.getElementById("trend-days").value;
-  const rows = await api(`api/findings/trend?days=${days}${domain ? `&domain=${domain}` : ""}`);
-
-  const series = { critical: [], warning: [], info: [] };
-  const labels = [];
-  for (const row of rows) {
-    series.critical.push(row.critical);
-    series.warning.push(row.warning);
-    series.info.push(row.info);
-    labels.push(new Date(row.started_at * 1000).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }));
-  }
+  const mode = document.getElementById("trend-breakdown").value; // "severity" | "domain"
   const chartEl = document.getElementById("trend-chart");
+
+  // 심각도별: honor the domain dropdown (filter to one domain, or all summed).
+  // 도메인별: always fetch every domain — the dropdown is ignored (see caption).
+  const useDomainFilter = mode === "severity" && domainSel;
+  const rows = await api(`api/findings/trend?days=${days}${useDomainFilter ? `&domain=${domainSel}` : ""}`);
+
   if (!rows.length) {
     chartEl.innerHTML = '<p class="muted">아직 데이터 없음 — 실행 이력이 쌓이면 표시됩니다.</p>';
     return;
   }
-  lineChart(chartEl, series, labels, {
-    critical: "심각 (critical)",
-    warning: "경고 (warning)",
-    info: "정보 (info)",
-  });
+
+  const dayLabel = (ts) => new Date(ts * 1000).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
+  // Bucket by day so multiple runs on the same day collapse to one x point
+  // (rows arrive sorted by started_at ascending).
+  const dayOrder = [];
+  for (const r of rows) {
+    const d = dayLabel(r.started_at);
+    if (!dayOrder.includes(d)) dayOrder.push(d);
+  }
+  const dayIndex = Object.fromEntries(dayOrder.map((d, i) => [d, i]));
+  const zeros = () => dayOrder.map(() => 0);
+
+  if (mode === "domain") {
+    // One line per domain = total findings (critical+warning+info) that day.
+    const byDomain = {};
+    for (const r of rows) {
+      if (!byDomain[r.domain]) byDomain[r.domain] = zeros();
+      byDomain[r.domain][dayIndex[dayLabel(r.started_at)]] += r.critical + r.warning + r.info;
+    }
+    const order = [...DOMAINS, ...Object.keys(byDomain).filter((d) => !DOMAINS.includes(d))];
+    const series = {};
+    const labels = {};
+    order.filter((d) => byDomain[d]).forEach((d) => {
+      series[d] = byDomain[d];
+      labels[d] = DOMAIN_LABELS[d] || d;
+    });
+    lineChart(chartEl, series, dayOrder, labels, DOMAIN_COLORS);
+  } else {
+    // Severity lines, summed per day across whatever rows matched the filter.
+    const series = { critical: zeros(), warning: zeros(), info: zeros() };
+    for (const r of rows) {
+      const i = dayIndex[dayLabel(r.started_at)];
+      series.critical[i] += r.critical;
+      series.warning[i] += r.warning;
+      series.info[i] += r.info;
+    }
+    lineChart(chartEl, series, dayOrder, {
+      critical: "심각 (critical)", warning: "경고 (warning)", info: "정보 (info)",
+    });
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("trend-domain").addEventListener("change", renderTrend);
   document.getElementById("trend-days").addEventListener("change", renderTrend);
+  document.getElementById("trend-breakdown").addEventListener("change", renderTrend);
 });
 
 // ---------- Domain detail views ----------
