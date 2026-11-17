@@ -28,16 +28,34 @@ that reason, not a portability oversight).
 
 **https://test2.studiobasa.com/k8stest/** — exposed via the cluster's
 shared Gateway, same pattern as Headlamp/Grafana/etc (`deploy/k8s/10-httproute.yaml`).
-A **form login page** gates the SPA (v0.3.0+); the default credential is
-**`admin` / `password`** — change it immediately from the **Settings tab**
-(this app's own security audit flags weak default credentials). Multiple
-users are supported: add more from Settings → "사용자 관리". See "Login &
-users" below. Note the trailing
+A **form login page** gates the SPA (v0.3.0+). The default credential
+**`admin` / `password`** is intentionally public — every new install starts
+with it, and you are expected to replace it on first login (checklist
+below). Multiple users are supported: add more from Settings → "사용자 관리".
+See "Login & users" below. Note the trailing
 slash — `/k8stest` without it 302-redirects to the slash form (needed
 because, unlike Grafana/Headlamp, this app isn't natively subpath-aware; the
 frontend uses relative asset/API paths instead, which only resolve
 correctly under the trailing-slash URL — see the comment block in
 `deploy/k8s/10-httproute.yaml` for the full mechanism).
+
+### ⚠️ First login — replace the default account right away
+
+The default `admin` / `password` is documented openly on purpose; it is only
+safe because it is meant to live for minutes, not days. Right after the first
+deploy (or after a lockout reset), do this before anything else:
+
+1. Log in with `admin` / `password`.
+2. **Settings → "내 비밀번호 변경"** — set a strong password (≥8 chars;
+   prefer a long random one from a password manager).
+3. *(Recommended)* **Settings → "사용자 관리"** — create a personal account
+   for each operator instead of sharing `admin`.
+4. Log out and log back in with the new password to confirm it took.
+5. Run the **security** check once — the "weak default credential" finding
+   should no longer appear.
+
+Until step 2 is done, anyone who reads this README can log in, so don't
+leave a fresh install unattended with the default password.
 
 **Port-forward (no cluster/DNS dependency, useful for local debugging):**
 
@@ -58,7 +76,8 @@ CSS/JS) are served without auth.
 
 - **Default credential: `admin` / `password`** — seeded on the first boot
   against a users-less database (`app/auth.py` `ensure_seed`). It is
-  deliberately weak per request; **change it right after deploying**.
+  deliberately public and weak; **replace it on first login** by following
+  "First login — replace the default account right away" above.
 - **Multiple users**: Settings tab → "사용자 관리" → add a username + password
   (≥8 chars). Any logged-in user can add users (single trust level, no roles).
 - **Change your own password**: Settings tab → "내 비밀번호 변경" (requires the

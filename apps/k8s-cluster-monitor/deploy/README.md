@@ -122,7 +122,9 @@ kubectl -n k8s-cluster-monitor exec deploy/k8s-cluster-monitor -- \
 kubectl -n k8s-cluster-monitor rollout restart deployment/k8s-cluster-monitor
 ```
 
-After it comes back, log in with `admin` / `password` and change it.
+After it comes back, log in with `admin` / `password` and immediately
+follow the "First login — replace the default account right away"
+checklist in `../README.md`.
 (Clearing `auth_credential` too prevents a stale legacy row from being
 re-migrated instead of the fresh default.)
 
@@ -265,7 +267,9 @@ kubectl -n k8s-cluster-monitor port-forward svc/k8s-cluster-monitor 8080:80
 # open http://localhost:8080 — the login page prompts for credentials (default admin/password)
 ```
 
-Trigger one "run all" from the Overview tab and confirm findings populate.
+First, replace the default `admin` / `password` (Settings → "내 비밀번호
+변경"; see the first-login checklist in `../README.md`). Then trigger one
+"run all" from the Overview tab and confirm findings populate.
 Dogfood restart-survival: `kubectl -n k8s-cluster-monitor delete pod -l app.kubernetes.io/name=k8s-cluster-monitor`
 and confirm run history is still there after the new pod comes up (the PVC
 should have survived the restart — if it didn't, that's the same failure
