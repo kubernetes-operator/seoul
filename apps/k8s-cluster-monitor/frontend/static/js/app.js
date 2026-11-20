@@ -2,16 +2,18 @@
 // backend returns WWW-Authenticate: Basic on 401), so fetch() calls to /api
 // just need credentials included — no login form to write here.
 
-const DOMAINS = ["health", "network", "security", "storage_backup", "observability", "performance"];
+const DOMAINS = ["health", "network", "security", "storage_backup", "observability", "performance", "routes"];
 const DOMAIN_LABELS = {
   health: "헬스", network: "네트워크", security: "보안",
   storage_backup: "스토리지/백업", observability: "관측성", performance: "성능",
+  routes: "도메인/페이지",
   load_test: "부하 테스트",
 };
 // Distinct per-domain line colors for the "도메인별" trend breakdown.
 const DOMAIN_COLORS = {
   health: "#16a34a", network: "#2563eb", security: "#dc2626",
   storage_backup: "#9333ea", observability: "#d97706", performance: "#0891b2",
+  routes: "#db2777",
   load_test: "#64748b",
 };
 
@@ -376,7 +378,7 @@ async function renderDomainView(domain) {
   view.querySelector(".run-now").addEventListener("click", async (e) => {
     if (accountRole !== 'admin') return;
     e.target.disabled = true;
-    try { await api(`api/runs/${domain}`, { method: "POST" }); await loadFindings(); }
+    try { await api(`api/runs/${domain}`, { method: "POST" }); await renderDomainView(domain); return; }
     finally { e.target.disabled = false; }
   });
   view.querySelector(".sev-filter").addEventListener("change", loadFindings);
@@ -414,7 +416,9 @@ async function renderDomainView(domain) {
 }
 
 async function renderDomainViz(domain, container) {
-  if (domain === "health") {
+  if (domain === "routes") {
+    await renderRoutesViz(container);
+  } else if (domain === "health") {
     const findings = await api("api/findings?domain=health&include_resolved=false");
     const nodeIssues = {};
     findings.filter((f) => f.check_id === "node_pressure" || f.check_id === "node_not_ready").forEach((f) => {
@@ -451,6 +455,74 @@ async function renderDomainViz(domain, container) {
       container.appendChild(box);
     }
   }
+}
+
+// ---------- Domains & pages (routes) ----------
+// Every HTTPRoute hostname/path is auto-discovered by the backend and probed
+// with a GET through the in-cluster Gateway (checks/routes.py). A 401/403 is
+// shown as "인증 필요" — the page answered, it just needs a login.
+const ROUTE_STATE = {
+  ok: ["정상", "ok"], auth: ["인증 필요", "ok"], client_error: ["4xx", "warn"],
+  server_error: ["5xx 오류", "bad"], unreachable: ["응답 없음", "bad"], skipped: ["실측 생략", "skip"],
+};
+const NEW_ROUTE_DAYS = 7; // mirrors backend/app/checks/routes.py
+
+function routeBadge(state, code) {
+  const [label, tone] = ROUTE_STATE[state] || [state, "skip"];
+  return `<span class="route-badge route-${tone}">${label}${code ? ` ${code}` : ""}</span>`;
+}
+
+async function renderRoutesViz(container) {
+  const data = await api("api/routes/latest");
+  if (!data.run_id) {
+    container.innerHTML = '<p class="muted">아직 실행 이력 없음 — "지금 실행"을 누르면 모든 HTTPRoute 도메인/경로를 찾아 실측합니다.</p>';
+    return;
+  }
+  const now = Date.now() / 1000;
+  const isNew = (p) => p.route_created && now - p.route_created < NEW_ROUTE_DAYS * 86400;
+  const probes = data.probes;
+  const count = (fn) => probes.filter(fn).length;
+  const hosts = {};
+  probes.forEach((p) => (hosts[p.host] = hosts[p.host] || []).push(p));
+
+  let html = `<div class="route-summary">
+    <div><b>${Object.keys(hosts).length}</b><span>도메인</span></div>
+    <div><b>${probes.length}</b><span>경로</span></div>
+    <div><b>${count((p) => p.state === "ok" || p.state === "auth")}</b><span>응답 정상</span></div>
+    <div class="${count((p) => ROUTE_STATE[p.state]?.[1] === "bad") ? "route-sum-bad" : ""}"><b>${count((p) => ROUTE_STATE[p.state]?.[1] === "bad")}</b><span>실패</span></div>
+    <div><b>${count(isNew)}</b><span>최근 ${NEW_ROUTE_DAYS}일 신규</span></div>
+  </div>
+  <p class="muted">마지막 실측 ${fmtTime(data.started_at)} · Gateway 경유 GET (공용 DNS/CDN 미경유)</p>
+  <div class="table-scroll"><table class="findings-table route-table">
+    <thead><tr><th>경로</th><th>결과</th><th>응답시간</th><th>최근 이력</th><th>HTTPRoute</th><th>생성</th></tr></thead><tbody>`;
+  for (const host of Object.keys(hosts).sort()) {
+    const rows = hosts[host];
+    const tls = rows.find((p) => p.tls_ok !== null && p.tls_ok !== undefined);
+    let tlsText = "TLS 실측 없음";
+    if (tls && tls.tls_ok) {
+      const days = Math.floor((tls.cert_not_after - now) / 86400);
+      tlsText = `<span class="${days < 14 ? "route-bad-text" : ""}">🔒 인증서 ${days}일 남음</span>`;
+    } else if (tls) {
+      tlsText = `<span class="route-bad-text">⚠ TLS 검증 실패: ${escapeHtml(tls.tls_error || "")}</span>`;
+    }
+    html += `<tr class="route-host-row"><td colspan="6"><b>${escapeHtml(host)}</b>
+      ${rows.some(isNew) ? '<span class="route-new">NEW</span>' : ""} <span class="muted">${tlsText}</span></td></tr>`;
+    for (const p of rows) {
+      const hist = (p.history || []).map((h) =>
+        `<i class="route-dot route-${(ROUTE_STATE[h.state] || ["", "skip"])[1]}" title="${fmtTime(h.at)} ${h.state}${h.status_code ? " " + h.status_code : ""}"></i>`).join("");
+      const link = p.state === "skipped" || p.host.includes("*") ? escapeHtml(p.path)
+        : `<a href="https://${encodeURI(p.host + p.path)}" target="_blank" rel="noopener noreferrer">${escapeHtml(p.path)}</a>`;
+      html += `<tr>
+        <td>${link}${isNew(p) ? ' <span class="route-new">NEW</span>' : ""}${p.error ? `<div class="muted">${escapeHtml(p.error)}</div>` : ""}</td>
+        <td>${routeBadge(p.state, p.status_code)}</td>
+        <td>${p.latency_ms != null ? Math.round(p.latency_ms) + "ms" : "-"}</td>
+        <td class="route-hist">${hist}</td>
+        <td>${escapeHtml(p.namespace || "")}/${escapeHtml(p.route || "")}${p.accepted === false ? ' <span class="route-bad-text">미승인</span>' : ""}</td>
+        <td>${p.route_created ? new Date(p.route_created * 1000).toLocaleDateString("ko-KR") : "-"}</td>
+      </tr>`;
+    }
+  }
+  container.innerHTML = html + "</tbody></table></div>";
 }
 
 // ---------- Chaos tab ----------

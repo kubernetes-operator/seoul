@@ -224,3 +224,30 @@ fieldset label { display: block; margin: 4px 0; font-size: 13px; }
 
 .filters { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; align-items: center; }
 select { padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); }
+
+/* Domains & pages (routes) tab */
+.route-summary { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; }
+.route-summary > div { min-width: 96px; padding: 10px 14px; border: 1px solid var(--border, #e5e7eb); border-radius: 10px; }
+.route-summary b { display: block; font-size: 22px; }
+.route-summary span { font-size: 12px; opacity: .7; }
+.route-sum-bad b, .route-bad-text { color: var(--critical); }
+.table-scroll { overflow-x: auto; }
+.route-host-row td { background: color-mix(in srgb, var(--info) 8%, transparent); }
+.route-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.route-badge.route-ok { background: color-mix(in srgb, #16a34a 15%, transparent); color: #16a34a; }
+.route-badge.route-warn { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
+.route-badge.route-bad { background: color-mix(in srgb, var(--critical) 15%, transparent); color: var(--critical); }
+.route-badge.route-skip { background: color-mix(in srgb, currentColor 10%, transparent); opacity: .7; }
+.route-new { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; background: #db2777; color: #fff; }
+.route-hist { white-space: nowrap; }
+.route-dot { display: inline-block; width: 8px; height: 8px; margin-right: 3px; border-radius: 50%; background: #9ca3af; }
+.route-dot.route-ok { background: #16a34a; }
+.route-dot.route-warn { background: var(--warning); }
+.route-dot.route-bad { background: var(--critical); }
+.route-table td, .route-table th { white-space: nowrap; }
+@media (max-width: 640px) {
+  .route-table th:nth-child(4), .route-table td:nth-child(4),
+  .route-table th:nth-child(5), .route-table td:nth-child(5),
+  .route-table th:nth-child(6), .route-table td:nth-child(6) { display: none; }
+  .route-host-row td { white-space: normal; }
+}

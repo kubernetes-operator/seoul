@@ -10,7 +10,7 @@ from typing import Callable
 
 from ..k8s_client import ClusterContext
 from .base import CheckResult
-from . import health, network, security, storage_backup, observability, performance
+from . import health, network, security, storage_backup, observability, performance, routes
 
 DOMAINS: dict[str, Callable[[ClusterContext], CheckResult]] = {
     "health": health.run,
@@ -19,11 +19,12 @@ DOMAINS: dict[str, Callable[[ClusterContext], CheckResult]] = {
     "storage_backup": storage_backup.run,
     "observability": observability.run,
     "performance": performance.run,
+    "routes": routes.run,
 }
 
 
 def run_domain(domain: str, conn) -> dict:
-    from ..models import save_run  # local import: avoids a circular import at module load time
+    from ..models import save_route_probes, save_run  # local import: avoids a circular import at module load time
 
     if domain not in DOMAINS:
         raise ValueError(f"unknown domain: {domain}")
@@ -34,6 +35,8 @@ def run_domain(domain: str, conn) -> dict:
     finished_at = time.time()
 
     run_id = save_run(conn, result, started_at, finished_at)
+    if result.probes is not None:
+        save_route_probes(conn, run_id, started_at, result.probes)
     return {
         "run_id": run_id,
         "domain": domain,

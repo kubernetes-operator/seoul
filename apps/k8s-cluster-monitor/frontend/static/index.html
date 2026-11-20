@@ -12,7 +12,7 @@
      2026-07-19 (fresh index.html + stale cached app.js without the new
      tab's JS). Bump ?v=X.Y.Z here every time frontend/static changes,
      alongside the image tag. -->
-<link rel="stylesheet" href="css/style.css?v=0.3.5">
+<link rel="stylesheet" href="css/style.css?v=0.4.0">
   <link rel="stylesheet" href="css/web-standard.css?v=0.4.0" data-web-standard="0.4.0">
 </head>
 <body>
@@ -26,6 +26,7 @@
     <button data-tab="storage_backup" class="tab">스토리지/백업</button>
     <button data-tab="observability" class="tab">관측성</button>
     <button data-tab="performance" class="tab">성능</button>
+    <button data-tab="routes" class="tab">도메인/페이지</button>
     <button data-tab="load_test" class="tab">부하 테스트</button>
     <button data-tab="chaos" class="tab">제안된 카오스 테스트</button>
     <button data-tab="settings" class="tab">설정</button>
@@ -111,6 +112,7 @@
   <section id="view-storage_backup" class="view domain-view" data-domain="storage_backup"></section>
   <section id="view-observability" class="view domain-view" data-domain="observability"></section>
   <section id="view-performance" class="view domain-view" data-domain="performance"></section>
+  <section id="view-routes" class="view domain-view" data-domain="routes"></section>
 
   <section id="view-load_test" class="view">
     <h2>부하 테스트</h2>
@@ -170,6 +172,7 @@
         <label><input type="checkbox" value="storage_backup" class="domain-checkbox" checked> storage_backup</label>
         <label><input type="checkbox" value="observability" class="domain-checkbox" checked> observability</label>
         <label><input type="checkbox" value="performance" class="domain-checkbox" checked> performance</label>
+        <label><input type="checkbox" value="routes" class="domain-checkbox" checked> routes</label>
       </fieldset>
       <button type="submit" class="btn-primary">저장</button>
       <span id="settings-status" class="muted"></span>
@@ -237,8 +240,8 @@
   </div>
 </div>
 
-<script src="js/charts.js?v=0.3.5"></script>
-<script src="js/app.js?v=0.3.5"></script>
+<script src="js/charts.js?v=0.4.0"></script>
+<script src="js/app.js?v=0.4.0"></script>
 <script data-ws-auth src="js/web-standard-auth.js?v=0.4.0" defer></script>
 </body>
 </html>

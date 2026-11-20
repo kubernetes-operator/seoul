@@ -116,3 +116,16 @@ spec:
               protocol: TCP
             - port: "80"
               protocol: TCP
+
+    # Domains & pages probes (backend/app/checks/routes.py): HTTPS GET to the
+    # NGINX Gateway data plane with each HTTPRoute hostname as Host + SNI.
+    # Only the gateway namespace on 443 — NOT the internet; the probe never
+    # leaves the cluster. Keep in sync with config.py routes_gateway_*.
+    # Port is the pod's container port (confirmed: nginx container 443/https).
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: nginx-gateway
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

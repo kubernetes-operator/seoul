@@ -56,6 +56,9 @@ class CheckResult:
         self.findings: list[Finding] = []
         self.status = "ok"  # ok | degraded | error
         self.status_reasons: list[str] = []
+        # Optional per-domain detail rows persisted alongside the run (only the
+        # "routes" domain uses this today; see models.save_route_probes).
+        self.probes: list[dict] | None = None
 
     def add(
         self,

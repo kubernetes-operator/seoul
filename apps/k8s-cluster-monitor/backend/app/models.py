@@ -117,6 +117,29 @@ CREATE TABLE IF NOT EXISTS load_tests (
     finished_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_load_tests_started ON load_tests(started_at);
+
+-- Domains & pages probe rows: one per discovered (hostname, path) per
+-- "routes" run. Detail behind the findings, for the per-URL status table.
+CREATE TABLE IF NOT EXISTS route_probes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL,
+    started_at REAL NOT NULL,
+    host TEXT NOT NULL,
+    path TEXT NOT NULL,
+    namespace TEXT,
+    route TEXT,
+    route_created REAL,
+    accepted INTEGER,
+    state TEXT NOT NULL,
+    status_code INTEGER,
+    latency_ms REAL,
+    error TEXT,
+    tls_ok INTEGER,
+    tls_error TEXT,
+    cert_not_after REAL
+);
+CREATE INDEX IF NOT EXISTS idx_route_probes_run ON route_probes(run_id);
+CREATE INDEX IF NOT EXISTS idx_route_probes_target ON route_probes(host, path, started_at);
 """
 
 
@@ -193,6 +216,7 @@ def prune_old_runs(conn: sqlite3.Connection, retention_days: int) -> None:
     # unresolved findings are kept regardless of age (still-open issues matter).
     conn.execute("DELETE FROM findings WHERE resolved_at IS NOT NULL AND resolved_at < ?", (cutoff,))
     conn.execute("DELETE FROM load_tests WHERE started_at < ?", (cutoff,))
+    conn.execute("DELETE FROM route_probes WHERE started_at < ?", (cutoff,))
     conn.commit()
 
 
@@ -214,3 +238,41 @@ def list_load_tests(conn: sqlite3.Connection, limit: int = 50) -> list[dict]:
     rows = conn.execute("SELECT * FROM load_tests ORDER BY started_at DESC LIMIT ?", (limit,)).fetchall()
     columns = [c[0] for c in conn.execute("SELECT * FROM load_tests LIMIT 0").description]
     return [dict(zip(columns, row)) for row in rows]
+
+
+_PROBE_COLS = ("host", "path", "namespace", "route", "route_created", "accepted", "state",
+               "status_code", "latency_ms", "error", "tls_ok", "tls_error", "cert_not_after")
+
+
+def save_route_probes(conn: sqlite3.Connection, run_id: int, started_at: float, probes: list[dict]) -> None:
+    conn.executemany(
+        f"INSERT INTO route_probes (run_id, started_at, {', '.join(_PROBE_COLS)}) "
+        f"VALUES (?, ?, {', '.join('?' for _ in _PROBE_COLS)})",
+        [(run_id, started_at, *(p.get(c) for c in _PROBE_COLS)) for p in probes],
+    )
+    conn.commit()
+
+
+def latest_route_probes(conn: sqlite3.Connection, history: int = 10) -> dict:
+    """Rows of the most recent routes run, each with its last `history`
+    states (oldest -> newest) and the first time this URL was ever probed."""
+    run = conn.execute(
+        "SELECT id, started_at FROM runs WHERE domain = 'routes' ORDER BY started_at DESC LIMIT 1"
+    ).fetchone()
+    if not run:
+        return {"run_id": None, "started_at": None, "probes": []}
+    cur = conn.execute(f"SELECT {', '.join(_PROBE_COLS)} FROM route_probes WHERE run_id = ? ORDER BY host, path",
+                       (run[0],))
+    rows = [dict(zip(_PROBE_COLS, r)) for r in cur.fetchall()]
+    for row in rows:
+        hist = conn.execute(
+            "SELECT state, status_code, started_at FROM route_probes WHERE host = ? AND path = ? "
+            "ORDER BY started_at DESC LIMIT ?", (row["host"], row["path"], history)).fetchall()
+        row["history"] = [{"state": s, "status_code": c, "at": t} for s, c, t in reversed(hist)]
+        row["first_probed"] = conn.execute(
+            "SELECT MIN(started_at) FROM route_probes WHERE host = ? AND path = ?",
+            (row["host"], row["path"])).fetchone()[0]
+        for key in ("accepted", "tls_ok"):
+            if row[key] is not None:
+                row[key] = bool(row[key])
+    return {"run_id": run[0], "started_at": run[1], "probes": rows}

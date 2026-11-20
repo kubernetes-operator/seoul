@@ -154,7 +154,7 @@ def update_user_access(username: str, role: str, pages: list[str] | None, passwo
             conn.execute('UPDATE users SET password_hash=?,salt=? WHERE username=?',(_hash_password(password,salt),salt.hex(),username))
 
 
-DATA_DOMAINS=('health','network','security','storage_backup','observability','performance')
+DATA_DOMAINS=('health','network','security','storage_backup','observability','performance','routes')
 
 
 def visible_domains(username: str) -> list[str] | None:
@@ -175,6 +175,8 @@ def check_page_access(username: str, request: Request) -> None:
         raise HTTPException(403,'조회 계정은 작업을 실행할 수 없습니다')
     if path.startswith('/api/loadtest'):
         page='load_test'
+    elif path.startswith('/api/routes'):
+        page='routes'
     elif path.startswith('/api/findings'):
         page=request.query_params.get('domain')
         if not page:

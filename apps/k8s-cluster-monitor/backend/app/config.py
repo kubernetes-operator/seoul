@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     loki_url: str = "http://loki-stack.logging.svc.cluster.local:3100"
     http_timeout_seconds: float = 5.0
 
+    # Domains & pages (checks/routes.py): probes go to the Gateway data plane
+    # Service in-cluster, with the route hostname as Host header + TLS SNI.
+    # Keep in sync with deploy/k8s/04-networkpolicy.yaml's nginx-gateway egress.
+    routes_gateway_host: str = "nginx-gateway.nginx-gateway.svc.cluster.local"
+    routes_gateway_https_port: int = 443
+    routes_probe_timeout_seconds: float = 5.0
+    routes_latency_warning_ms: float = 2000.0
+    routes_cert_warning_days: int = 14
+
     schedule_cron: str = ""  # empty = disabled; e.g. "0 * * * *" for hourly
     retention_days: int = 30
 

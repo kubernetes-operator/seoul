@@ -115,6 +115,33 @@ feature, not a general-purpose load generator, and the egress
 - Results also appear as a summary Finding (`domain=load_test`) in the
   unified findings view, in addition to the dedicated history table.
 
+### Domains & pages (v0.4.0)
+
+The **도메인/페이지** tab (domain `routes`, `backend/app/checks/routes.py`)
+auto-discovers every `HTTPRoute` hostname + path in the cluster on each run —
+no list to maintain, so a newly added domain or page shows up on the next
+run with a **NEW** badge (route created within 7 days).
+
+For each URL it sends one HTTPS **GET** to the in-cluster NGINX Gateway
+Service (`nginx-gateway.nginx-gateway.svc`) with the hostname as Host header
+and TLS SNI — the same gateway → route → backend path a browser hits, minus
+public DNS/CDN. Redirects aren't followed and no credentials are sent, so
+401/403 counts as "reachable (login required)". Per hostname it also checks
+that the certificate validates for that name and how long until it expires.
+
+| Finding | Severity |
+|---|---|
+| connection failure / timeout, HTTP 5xx | critical |
+| response slower than 2000 ms | warning |
+| certificate invalid for the hostname (e.g. not in the SAN) | warning |
+| certificate expires in < 14 days (< 7 days: critical) | warning |
+| HTTPRoute not `Accepted` by the Gateway | warning |
+
+Regex paths, header/query/method-constrained matches and wildcard hostnames
+are listed but not probed. Egress is limited to the gateway namespace on 443
+(`deploy/k8s/04-networkpolicy.yaml`). To track it on the schedule, tick
+`routes` in Settings → 스케줄 (existing installs keep their saved domain list).
+
 ## Structure
 
 - `backend/` — FastAPI app (API + serves the static frontend), check modules,
