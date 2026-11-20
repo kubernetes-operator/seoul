@@ -68,16 +68,30 @@ function showLogin(errorText) {
   document.getElementById("login-username").focus();
 }
 
-function showApp(username) {
+let allowedPages = null;
+let accountRole = 'admin';
+function canOpenPage(page) {
+  return allowedPages === null || (page === 'settings' ? accountRole === 'admin' : allowedPages.includes(page));
+}
+function showApp(username, access) {
   currentUser = username;
+  allowedPages = access && Array.isArray(access.pages) ? access.pages : null;
+  accountRole = access && access.role ? access.role : 'admin';
   document.getElementById("login-overlay").hidden = true;
   document.getElementById("tabs").hidden = false;
   document.getElementById("user-area").hidden = false;
   document.getElementById("app").hidden = false;
   document.getElementById("current-user").textContent = `${username} 님`;
-  currentTab = "overview";
+  document.querySelectorAll('#tabs .tab').forEach(button => { button.hidden = !canOpenPage(button.dataset.tab); });
   initTabs();
-  renderOverview();
+  const first = Array.from(document.querySelectorAll('#tabs .tab')).find(button => !button.hidden);
+  if (first) switchTab(first.dataset.tab);
+  else {
+    currentTab = '';
+    document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+    let empty = document.getElementById('no-page-access');
+    if (!empty) { empty = document.createElement('p'); empty.id = 'no-page-access'; empty.textContent = '허용된 업무 페이지가 없습니다. 개인 설정을 사용하거나 관리자에게 권한을 요청하세요.'; document.getElementById('app').append(empty); }
+  }
   initAutoRefresh();
 }
 
@@ -105,10 +119,11 @@ async function bootstrap() {
         err.textContent = detail;
         return;
       }
-      const { username: who } = await resp.json();
+      const access = await resp.json();
+      const who = access.username;
       document.getElementById("login-password").value = "";
       err.textContent = "";
-      showApp(who);
+      showApp(who, access);
     } catch (ex) {
       err.textContent = `로그인 실패: ${ex.message}`;
     }
@@ -119,8 +134,8 @@ async function bootstrap() {
   try {
     const resp = await fetch("api/session", { credentials: "same-origin" });
     if (resp.ok) {
-      const { username } = await resp.json();
-      showApp(username);
+      const access = await resp.json();
+      showApp(access.username, access);
       return;
     }
   } catch (e) { /* fall through to the login gate */ }
@@ -157,6 +172,7 @@ function renderTab(tab) {
 }
 
 function switchTab(tab) {
+  if (!canOpenPage(tab)) return;
   currentTab = tab;
   document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
@@ -237,6 +253,8 @@ async function renderOverview() {
     cardsEl.appendChild(card);
   }
 
+  cardsEl.querySelectorAll(".run-btn").forEach(btn => { btn.disabled = accountRole !== 'admin'; });
+  document.getElementById("run-all-btn").disabled = accountRole !== 'admin';
   cardsEl.querySelectorAll(".run-btn").forEach((btn) =>
     btn.addEventListener("click", () => triggerRun(btn.dataset.domain, btn)));
   cardsEl.querySelectorAll(".view-btn").forEach((btn) =>
@@ -256,6 +274,7 @@ function bar(sev, value, total) {
 }
 
 async function triggerRun(domain, btn) {
+  if (accountRole !== 'admin') return;
   btn.disabled = true;
   const original = btn.textContent;
   btn.textContent = "실행 중...";
@@ -353,7 +372,9 @@ async function renderDomainView(domain) {
       <tbody class="findings-body"></tbody>
     </table>`;
 
+  view.querySelector(".run-now").disabled = accountRole !== 'admin';
   view.querySelector(".run-now").addEventListener("click", async (e) => {
+    if (accountRole !== 'admin') return;
     e.target.disabled = true;
     try { await api(`api/runs/${domain}`, { method: "POST" }); await loadFindings(); }
     finally { e.target.disabled = false; }

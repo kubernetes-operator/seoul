@@ -21,12 +21,14 @@ table so prior access isn't lost on upgrade.
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 import sqlite3
 import time
 from typing import Optional
 
-from fastapi import Cookie, HTTPException, status
+from fastapi import Cookie, HTTPException, status, Request
+from . import page_policy
 
 from .db import get_db
 
@@ -59,6 +61,7 @@ def _insert_user(conn: sqlite3.Connection, username: str, password: str) -> None
 def ensure_seed(conn: sqlite3.Connection) -> None:
     """Idempotent: seeds default users only when the `users` table is empty."""
     if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] > 0:
+        migrate_existing_access(conn)
         return
     # Preserve a legacy single Basic-Auth credential (unless its name is the
     # default 'admin', which the requested seed below covers anyway).
@@ -73,6 +76,7 @@ def ensure_seed(conn: sqlite3.Connection) -> None:
     if not _user_exists(conn, DEFAULT_USERNAME):
         _insert_user(conn, DEFAULT_USERNAME, DEFAULT_PASSWORD)
     conn.commit()
+    migrate_existing_access(conn)
 
 
 # --------------------------------------------------------------------------
@@ -91,20 +95,97 @@ def verify_user(conn: sqlite3.Connection, username: str, password: str) -> bool:
     return secrets.compare_digest(_hash_password(password, bytes.fromhex(salt_hex)), stored_hash)
 
 
-def create_user(username: str, password: str) -> None:
-    username = username.strip()
-    if not username:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="사용자명을 입력하세요")
-    if len(password) < MIN_PASSWORD_LEN:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"비밀번호는 {MIN_PASSWORD_LEN}자 이상이어야 합니다",
-        )
-    conn = get_db()
-    if _user_exists(conn, username):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 존재하는 사용자명입니다")
-    _insert_user(conn, username, password)
+def migrate_existing_access(conn: sqlite3.Connection) -> None:
+    """기존 계정의 종전 관리 권한을 보존하고 새 계정은 명시적으로 구분한다."""
+    conn.execute("INSERT OR IGNORE INTO user_access(username,role,pages) SELECT username,'admin',NULL FROM users")
     conn.commit()
+
+
+def user_access(username: str) -> tuple[str,list[str] | None]:
+    row=get_db().execute('SELECT role,pages FROM user_access WHERE username=?',(username,)).fetchone()
+    if row is None:
+        return 'viewer', []  # 알 수 없는 메타데이터를 관리자 권한으로 승격하지 않는다.
+    try:
+        return row[0],None if row[1] is None else json.loads(row[1])
+    except (ValueError,TypeError):
+        return 'viewer', []
+
+
+def create_user(username: str, password: str, role: str='viewer', pages: list[str] | None=None) -> None:
+    try:
+        username=page_policy.normalize_username(username)
+        pages=page_policy.normalize('seoul',role,pages)
+    except ValueError as error:
+        raise HTTPException(400,str(error)) from error
+    if len(password)<MIN_PASSWORD_LEN:
+        raise HTTPException(400,f'비밀번호는 {MIN_PASSWORD_LEN}자 이상이어야 합니다')
+    conn=get_db()
+    if _user_exists(conn,username):
+        raise HTTPException(409,'이미 존재하는 사용자명입니다')
+    with conn:
+        # 메타데이터를 먼저 기록하여 새 사용자에게 legacy 관리 권한이 생기지 않는다.
+        conn.execute('INSERT INTO user_access(username,role,pages) VALUES(?,?,?) ON CONFLICT(username) DO UPDATE SET role=excluded.role,pages=excluded.pages',(username,role,None if pages is None else json.dumps(pages)))
+        _insert_user(conn,username,password)
+
+
+def list_user_details() -> list[dict]:
+    result=[]
+    for username in list_users():
+        role,pages=user_access(username)
+        result.append({'username':username,'role':role,'pages':pages})
+    return result
+
+
+def update_user_access(username: str, role: str, pages: list[str] | None, password: str | None=None) -> None:
+    conn=get_db()
+    if not _user_exists(conn,username):raise HTTPException(404,'사용자 없음')
+    try:pages=page_policy.normalize('seoul',role,pages)
+    except ValueError as error:raise HTTPException(400,str(error)) from error
+    old_role,_=user_access(username)
+    if old_role=='admin' and role!='admin':
+        count=conn.execute("SELECT COUNT(*) FROM user_access a JOIN users u ON a.username=u.username WHERE a.role='admin'").fetchone()[0]
+        if count<=1:raise HTTPException(409,'마지막 관리자는 강등할 수 없습니다')
+    if password is not None and len(password)<MIN_PASSWORD_LEN:
+        raise HTTPException(400,f'비밀번호는 {MIN_PASSWORD_LEN}자 이상이어야 합니다')
+    with conn:
+        conn.execute('INSERT INTO user_access(username,role,pages) VALUES(?,?,?) ON CONFLICT(username) DO UPDATE SET role=excluded.role,pages=excluded.pages',(username,role,None if pages is None else json.dumps(pages)))
+        if password is not None:
+            salt=secrets.token_bytes(16)
+            conn.execute('UPDATE users SET password_hash=?,salt=? WHERE username=?',(_hash_password(password,salt),salt.hex(),username))
+
+
+DATA_DOMAINS=('health','network','security','storage_backup','observability','performance')
+
+
+def visible_domains(username: str) -> list[str] | None:
+    role,pages=user_access(username)
+    if role=='admin' or pages is None:return None
+    return [domain for domain in DATA_DOMAINS if page_policy.allowed('seoul',role,pages,domain)]
+
+
+def check_page_access(username: str, request: Request) -> None:
+    role,pages=user_access(username)
+    if role=='admin':return
+    path=request.url.path
+    if path in ('/api/session','/api/logout','/api/auth/password','/api/ui/session','/api/ui/password'):
+        return
+    if path.startswith(('/api/users','/api/ui/users','/api/schedule')):
+        raise HTTPException(403,'관리자 권한이 필요합니다')
+    if request.method not in ('GET','HEAD','OPTIONS'):
+        raise HTTPException(403,'조회 계정은 작업을 실행할 수 없습니다')
+    if path.startswith('/api/loadtest'):
+        page='load_test'
+    elif path.startswith('/api/findings'):
+        page=request.query_params.get('domain')
+        if not page:
+            if page_policy.allowed('seoul',role,pages,'overview') or visible_domains(username):return
+            raise HTTPException(403,'조회할 수 있는 페이지가 없습니다')
+    elif path.startswith('/api/runs'):
+        page=request.query_params.get('domain') or 'overview'
+    else:
+        page='unclassified'
+    if not page_policy.allowed('seoul',role,pages,page):
+        raise HTTPException(403,'이 페이지에 대한 권한이 없습니다')
 
 
 def list_users() -> list[str]:
@@ -164,12 +245,24 @@ def _session_user(token: Optional[str]) -> Optional[str]:
         conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
         conn.commit()
         return None
+    if not _user_exists(conn,username):
+        delete_session(token)
+        return None
     return username
 
 
-def require_session(kct_session: Optional[str] = Cookie(default=None)) -> str:
+def require_session(kct_session: Optional[str] = Cookie(default=None), request: Request = None) -> str:
     """FastAPI dependency: resolves the session cookie to a username or 401s."""
     user = _session_user(kct_session)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="로그인이 필요합니다")
+    if request is not None:
+        check_page_access(user,request)
+    return user
+
+
+def require_admin(kct_session: Optional[str] = Cookie(default=None)) -> str:
+    user=_session_user(kct_session)
+    if user is None:raise HTTPException(401,'로그인이 필요합니다')
+    if user_access(user)[0]!='admin':raise HTTPException(403,'관리자 권한이 필요합니다')
     return user

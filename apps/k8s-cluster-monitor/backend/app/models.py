@@ -15,6 +15,13 @@ from typing import Optional
 from .checks.base import CheckResult, Severity
 
 SCHEMA = """
+-- 권한은 별도 테이블에 추가한다. 기존 비밀번호/사용자 열은 재작성하지 않는다.
+CREATE TABLE IF NOT EXISTS user_access (
+    username TEXT PRIMARY KEY,
+    role TEXT NOT NULL,
+    pages TEXT
+);
+
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     domain TEXT NOT NULL,

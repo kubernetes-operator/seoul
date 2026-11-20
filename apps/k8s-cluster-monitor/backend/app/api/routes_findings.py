@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from ..auth import require_session
+from ..auth import require_session, visible_domains
 from ..db import get_db
 
 router = APIRouter(dependencies=[Depends(require_session)])
 
 
 @router.get("/findings")
-def list_findings(domain: str | None = None, severity: str | None = None, include_resolved: bool = False):
+def list_findings(domain: str | None = None, severity: str | None = None, include_resolved: bool = False, current: str = Depends(require_session)):
     conn = get_db()
     query = "SELECT * FROM findings WHERE 1=1"
     params: list = []
@@ -21,6 +21,11 @@ def list_findings(domain: str | None = None, severity: str | None = None, includ
         params.append(severity)
     if not include_resolved:
         query += " AND resolved_at IS NULL"
+    allowed=visible_domains(current)
+    if allowed is not None:
+        if not allowed:return []
+        query += ' AND domain IN ('+','.join('?' for _ in allowed)+')'
+        params.extend(allowed)
     query += " ORDER BY severity, last_seen DESC"
 
     rows = conn.execute(query, params).fetchall()
@@ -29,7 +34,7 @@ def list_findings(domain: str | None = None, severity: str | None = None, includ
 
 
 @router.get("/findings/trend")
-def findings_trend(domain: str | None = None, days: int = 14):
+def findings_trend(domain: str | None = None, days: int = 14, current: str = Depends(require_session)):
     """Findings-over-time by severity, bucketed by day — powers the trend chart."""
     import time
 
@@ -43,6 +48,11 @@ def findings_trend(domain: str | None = None, days: int = 14):
     if domain:
         query += " AND domain = ?"
         params.append(domain)
+    allowed=visible_domains(current)
+    if allowed is not None:
+        if not allowed:return []
+        query += ' AND domain IN ('+','.join('?' for _ in allowed)+')'
+        params.extend(allowed)
     query += " ORDER BY started_at ASC"
 
     rows = conn.execute(query, params).fetchall()
