@@ -7,7 +7,7 @@ PAGES = {
     'gimpo': {'overview':'개요', 'health':'상태 점검', 'backups':'백업', 'restores':'복구', 'schedules':'스케줄', 'storage':'스토리지', 'repositories':'리포지토리', 'settings':'개인 설정', 'users':'사용자 관리'},
     'samsung': {'flows':'트래픽 흐름', 'policies':'정책', 'settings':'개인 설정', 'users':'사용자 관리'},
     'seongnam': {'dashboard':'개요', 'nodes':'노드', 'events':'이벤트', 'logs':'로그', 'predictions':'예측', 'reports':'리포트', 'settings':'개인 설정', 'users':'사용자 관리'},
-    'seoul': {'overview':'개요', 'health':'헬스', 'network':'네트워크', 'security':'보안', 'storage_backup':'스토리지·백업', 'observability':'관측성', 'performance':'성능', 'routes':'도메인·페이지', 'load_test':'부하 테스트', 'chaos':'제안된 카오스', 'settings':'개인 설정', 'users':'사용자 관리'},
+    'seoul': {'overview':'개요', 'health':'헬스', 'network':'네트워크', 'security':'보안', 'storage_backup':'스토리지·백업', 'observability':'관측성', 'performance':'성능', 'load_test':'부하 테스트', 'chaos':'제안된 카오스', 'settings':'개인 설정', 'users':'사용자 관리'},
     'tashkent': {'products':'제품', 'new':'새 제품', 'presets':'프리셋', 'debug':'진단', 'settings':'개인 설정', 'users':'사용자 관리'},
 }
 
