@@ -161,6 +161,10 @@ def update_user_access(username: str, role: str, pages: list[str] | None, passwo
         if password is not None:
             salt=secrets.token_bytes(16)
             conn.execute('UPDATE users SET password_hash=?,salt=? WHERE username=?',(_hash_password(password,salt),salt.hex(),username))
+    # Admin password reset or demotion from admin logs the user out; other
+    # grant changes already apply live (permissions are checked per request).
+    if password is not None or (old_role=='admin' and role!='admin'):
+        revoke_sessions(username)
 
 
 DATA_DOMAINS=('health','network','security','storage_backup','observability','performance','routes')
@@ -204,7 +208,17 @@ def list_users() -> list[str]:
     return [r[0] for r in conn.execute("SELECT username FROM users ORDER BY username").fetchall()]
 
 
-def change_user_password(username: str, current_password: str, new_password: str) -> None:
+def revoke_sessions(username: str, keep: Optional[str] = None) -> None:
+    """Log a user out everywhere (optionally except the caller's own session)
+    — run on any credential or permission change so a stolen/old session
+    can't outlive the password or role it was issued under."""
+    conn = get_db()
+    conn.execute("DELETE FROM sessions WHERE username = ? AND token IS NOT ?", (username, keep))
+    conn.commit()
+
+
+def change_user_password(username: str, current_password: str, new_password: str,
+                         keep_session: Optional[str] = None) -> None:
     conn = get_db()
     if not verify_user(conn, username, current_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="현재 비밀번호가 올바르지 않습니다")
@@ -219,6 +233,7 @@ def change_user_password(username: str, current_password: str, new_password: str
         (_hash_password(new_password, salt), salt.hex(), username),
     )
     conn.commit()
+    revoke_sessions(username, keep=keep_session)
 
 
 # --------------------------------------------------------------------------

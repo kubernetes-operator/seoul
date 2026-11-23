@@ -5,6 +5,7 @@ nothing about cluster posture, only this pod's own process health.
 from __future__ import annotations
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from ..db import get_db
 
@@ -21,5 +22,5 @@ def readyz():
     try:
         get_db().execute("SELECT 1")
         return {"status": "ready"}
-    except Exception as exc:  # noqa: BLE001
-        return {"status": "not-ready", "reason": str(exc)}
+    except Exception as exc:  # noqa: BLE001 - unauthenticated endpoint: no error detail
+        return JSONResponse({"status": "not-ready", "reason": exc.__class__.__name__}, status_code=503)

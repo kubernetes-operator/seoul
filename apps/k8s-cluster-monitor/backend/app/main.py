@@ -3,7 +3,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from urllib.parse import urlsplit
+
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import scheduler
@@ -23,6 +26,38 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="k8s-cluster-monitor", lifespan=lifespan)
+
+
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "same-origin",
+    # Script/style sources are left open on purpose (the shared web-standard
+    # layer injects inline styles); these directives only forbid framing,
+    # plugins and <base> hijacking, which nothing in this app uses.
+    "Content-Security-Policy": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
+}
+
+
+@app.middleware("http")
+async def security_guards(request: Request, call_next):
+    """Cross-origin write guard + baseline security headers.
+
+    SameSite=Lax treats every *.studiobasa.com app as "same-site", so a
+    state-changing /api call carrying our cookie could still be triggered
+    from a sibling app on another subdomain. Browsers always send Origin on
+    cross-origin POST/PUT/PATCH/DELETE, so reject those whose Origin host
+    doesn't match the host the request was sent to."""
+    if request.method not in ("GET", "HEAD", "OPTIONS") and request.url.path.startswith("/api/"):
+        origin = request.headers.get("origin")
+        if origin and urlsplit(origin).netloc.lower() != request.headers.get("host", "").lower():
+            return JSONResponse({"detail": "다른 출처의 요청은 허용되지 않습니다"}, status_code=403)
+    response = await call_next(request)
+    for key, value in _SECURITY_HEADERS.items():
+        response.headers.setdefault(key, value)
+    if request.headers.get("x-forwarded-proto", "").split(",")[0].strip() == "https":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=15552000")
+    return response
 
 
 @app.middleware("http")

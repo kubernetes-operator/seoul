@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
-from .. import auth
+from .. import auth, login_guard
 from ..auth import require_session
 from ..db import get_db
 
@@ -32,23 +32,35 @@ def _user_summary(username: str) -> dict:
     return {'username':username,'role':role,'pages':auth.page_policy.effective('seoul',role,pages)}
 
 
-def _set_session_cookie(response: Response, token: str) -> None:
-    # Secure is intentionally left off so `kubectl port-forward` over plain
-    # HTTP works too; in normal use the app is only reached over HTTPS via the
-    # Gateway/Cloudflare. httponly + SameSite=Lax mitigate XSS/CSRF exposure.
+def _is_https(request: Request) -> bool:
+    proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    return request.url.scheme == "https" or proto == "https"
+
+
+def _set_session_cookie(request: Request, response: Response, token: str) -> None:
+    # Secure whenever the browser reached us over HTTPS (Gateway/Cloudflare set
+    # X-Forwarded-Proto), so the session never travels in clear text there;
+    # left off only for plain-HTTP `kubectl port-forward` debugging.
     response.set_cookie(
-        key=auth.SESSION_COOKIE, value=token, httponly=True,
+        key=auth.SESSION_COOKIE, value=token, httponly=True, secure=_is_https(request),
         samesite="lax", path="/", max_age=auth.SESSION_TTL_SECONDS,
     )
 
 
 @router.post("/login")
-def login(body: LoginBody, response: Response):
+def login(body: LoginBody, request: Request, response: Response):
+    wait = login_guard.retry_after(body.username)
+    if wait:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail=f"로그인 실패가 반복되어 잠시 잠겼습니다. {wait // 60 + 1}분 후 다시 시도하세요",
+                            headers={"Retry-After": str(wait)})
     if not auth.verify_user(get_db(), body.username, body.password):
+        login_guard.record_failure(body.username)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="사용자명 또는 비밀번호가 올바르지 않습니다")
+    login_guard.record_success(body.username)
     token = auth.create_session(body.username)
-    _set_session_cookie(response, token)
+    _set_session_cookie(request, response, token)
     return _user_summary(body.username)
 
 
@@ -76,8 +88,9 @@ def add_user(body: NewUserBody, _: str = Depends(auth.require_admin)):
 
 
 @router.put("/auth/password")
-def update_password(body: PasswordChange, current: str = Depends(require_session)):
-    auth.change_user_password(current, body.current_password, body.new_password)
+def update_password(body: PasswordChange, current: str = Depends(require_session),
+                    kct_session: str = Cookie(default=None)):
+    auth.change_user_password(current, body.current_password, body.new_password, keep_session=kct_session)
     return {"status": "changed"}
 
 
@@ -95,9 +108,10 @@ class ConfirmedPassword(BaseModel):
 
 
 @router.post('/ui/password')
-def ui_password(body: ConfirmedPassword, current: str = Depends(require_session)):
+def ui_password(body: ConfirmedPassword, current: str = Depends(require_session),
+                kct_session: str = Cookie(default=None)):
     if body.new_password!=body.confirm_password:raise HTTPException(400,'새 비밀번호가 일치하지 않습니다')
-    auth.change_user_password(current,body.current_password,body.new_password)
+    auth.change_user_password(current,body.current_password,body.new_password,keep_session=kct_session)
     return {'ok':True}
 
 

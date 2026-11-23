@@ -241,7 +241,7 @@ async function renderOverview() {
     } else {
       const total = run.critical_count + run.warning_count + run.info_count || 1;
       card.innerHTML = `
-        <span class="status-badge status-${run.status}">${run.status}</span>
+        <span class="status-badge status-${escapeHtml(run.status)}">${escapeHtml(run.status)}</span>
         <h3>${DOMAIN_LABELS[domain]}</h3>
         <div class="muted">마지막 실행: ${fmtTime(run.started_at)}</div>
         ${bar("critical", run.critical_count, total)}
@@ -396,12 +396,12 @@ async function renderDomainView(domain) {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${severityPill(f.severity)}</td>
-        <td>${f.title}
+        <td>${escapeHtml(f.title)}
           ${f.evidence || f.reproduce_cmd ? `<div><button class="evidence-toggle">근거 보기</button>
             <div class="evidence-block">${f.evidence ? escapeHtml(f.evidence) + "<br>" : ""}${f.reproduce_cmd ? `<code>${escapeHtml(f.reproduce_cmd)}</code>` : ""}</div>
           </div>` : ""}
         </td>
-        <td>${f.namespace || "-"}</td>
+        <td>${escapeHtml(f.namespace || "-")}</td>
         <td>${fmtTime(f.first_seen)}</td>
         <td>${fmtTime(f.last_seen)}${f.resolved_at ? " (해결됨)" : ""}</td>
         <td></td>`;
@@ -882,10 +882,12 @@ async function loadLoadtestHistory() {
   `).join("");
 }
 
+// Escapes for both element text and quoted attribute values. Everything shown
+// from the API (finding titles, namespaces, hostnames...) ultimately comes
+// from cluster object names/messages, so it is never trusted as markup.
 function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
+  return String(str ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
 bootstrap();
